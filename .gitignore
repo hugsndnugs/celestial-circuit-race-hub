@@ -1,0 +1,8 @@
+.next/
+out/
+node_modules/
+.env*
+!.env.example
+npm-debug.log*
+/celestial-circuit-race-controller/
+/celestial-circuit-race-signups/

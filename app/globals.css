@@ -1,0 +1,156 @@
+:root {
+  --cc-bg: #0e1116;
+  --cc-text: #e8edf2;
+  --cc-card: #151a21;
+  --cc-border: #293445;
+  --cc-primary: #1971ff;
+  --cc-form: #0d1219;
+
+  font-family: var(--font-body), Arial, sans-serif;
+  color: var(--cc-text);
+  background: var(--cc-bg);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-size: 1.06rem;
+  line-height: 1.55;
+  color: var(--cc-text);
+  background: var(--cc-bg);
+}
+
+main {
+  max-width: 1140px;
+  margin: 0 auto;
+  padding: 1.6rem 1.8rem 2rem;
+}
+
+.brand-header {
+  border-bottom: 1px solid var(--cc-border);
+  background:
+    radial-gradient(120% 90% at 50% -10%, rgba(25, 113, 255, 0.14), rgba(14, 17, 22, 0) 58%),
+    linear-gradient(180deg, #101722 0%, #0e1116 78%);
+}
+
+.brand-link {
+  max-width: 1140px;
+  margin: 0 auto;
+  padding: 0.85rem 1.8rem 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 1rem;
+  text-decoration: none;
+}
+
+.brand-logo {
+  width: 220px;
+  height: auto;
+  object-fit: contain;
+  display: block;
+  opacity: 0.82;
+  filter: saturate(0.84) brightness(0.86) drop-shadow(0 6px 12px rgba(0, 0, 0, 0.28));
+  transition: filter 120ms ease-in-out, opacity 120ms ease-in-out;
+}
+
+.brand-link:hover .brand-logo,
+.brand-link:focus-visible .brand-logo {
+  opacity: 0.9;
+  filter: saturate(0.92) brightness(0.92) drop-shadow(0 8px 16px rgba(0, 0, 0, 0.34));
+}
+
+.brand-name {
+  color: var(--cc-text);
+  font-family: var(--font-brand), sans-serif;
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.brand-link:hover .brand-name,
+.brand-link:focus-visible .brand-name {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+}
+
+.hero {
+  margin-bottom: 1.2rem;
+}
+
+.card {
+  background: var(--cc-card);
+  border: 1px solid var(--cc-border);
+  border-radius: 0.75rem;
+  padding: 1.3rem;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+h1,
+h2 {
+  margin-top: 0;
+  line-height: 1.2;
+}
+
+h1 {
+  font-size: 2rem;
+}
+
+h2 {
+  font-size: 1.35rem;
+}
+
+p {
+  margin: 0.5rem 0 0;
+}
+
+a.cc-link {
+  display: inline-flex;
+  margin-top: 0.9rem;
+  background: var(--cc-primary);
+  color: #fff;
+  border: 0;
+  border-radius: 0.5rem;
+  padding: 0.65rem 0.95rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+a.cc-link.secondary {
+  background: #1b2635;
+  border: 1px solid #32455e;
+}
+
+.muted {
+  color: rgba(232, 237, 242, 0.75);
+}
+
+.footer {
+  margin-top: 1.4rem;
+  font-size: 0.88rem;
+  color: rgba(232, 237, 242, 0.62);
+}
+
+@media (max-width: 840px) {
+  .brand-logo {
+    width: 155px;
+  }
+
+  .brand-name {
+    font-size: 1.45rem;
+    letter-spacing: 0.035em;
+  }
+
+  main {
+    padding: 1.2rem 1rem 1.4rem;
+  }
+}
