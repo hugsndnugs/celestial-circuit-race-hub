@@ -6,3 +6,5 @@ node_modules/
 npm-debug.log*
 /celestial-circuit-race-controller/
 /celestial-circuit-race-signups/
+/celestial-circuit-race-docs/
+/celestial-circuit-race-status/
