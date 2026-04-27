@@ -53,9 +53,8 @@ export default function HomePage() {
       <section className="card hero">
         <h1>Race Operations Hub</h1>
         <p>
-          Central launch point for Celestial Circuit tools. This page is optimized for GitHub
-          Pages project-site deploys and can switch to custom domain routing later via environment
-          settings.
+          Welcome to the central home for Celestial Circuit race-day tools. Choose where you want
+          to go below for race control, team signup, documentation, or service status.
         </p>
       </section>
 
@@ -72,14 +71,12 @@ export default function HomePage() {
             >
               {target.cta}
             </a>
+            {target.href.startsWith("#") ? (
+              <p className="footer">This section is being prepared and will be available soon.</p>
+            ) : null}
           </article>
         ))}
       </section>
-
-      <p className="footer">
-        Configure deployment links with `NEXT_PUBLIC_PAGES_ORIGIN`, `NEXT_PUBLIC_CONTROLLER_URL`,
-        and `NEXT_PUBLIC_SIGNUPS_URL`.
-      </p>
     </main>
   );
 }
