@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { Exo_2, Orbitron } from "next/font/google";
-import logo from "@/celestial-circuit-race-controller/celestial_circuit_logo.png";
+import logo from "./celestial_circuit_logo.png";
 import "./globals.css";
 
 const exo = Exo_2({
