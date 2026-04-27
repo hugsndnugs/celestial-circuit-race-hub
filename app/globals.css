@@ -72,6 +72,11 @@ main {
   text-transform: uppercase;
 }
 
+.brand-subtitle {
+  font-size: 0.85rem;
+  color: rgba(232, 237, 242, 0.7);
+}
+
 .brand-link:hover .brand-name,
 .brand-link:focus-visible .brand-name {
   text-decoration: underline;
@@ -132,6 +137,66 @@ a.cc-link.secondary {
 
 .muted {
   color: rgba(232, 237, 242, 0.75);
+}
+
+.cc-card {
+  background: var(--cc-card);
+  border: 1px solid var(--cc-border);
+  border-radius: 0.75rem;
+  padding: 1.3rem;
+}
+
+.cc-input {
+  width: 100%;
+  background: #0d1219;
+  color: #e8edf2;
+  border: 1px solid #314258;
+  border-radius: 0.45rem;
+  padding: 0.62rem 0.7rem;
+  margin: 0.35rem 0 1rem;
+  font-size: 1rem;
+}
+
+.cc-label {
+  display: block;
+  font-size: 0.95rem;
+  color: rgba(232, 237, 242, 0.9);
+}
+
+.cc-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  border: 0;
+  background: var(--cc-primary);
+  color: #fff;
+  padding: 0.65rem 0.95rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.cc-error {
+  color: #fda4af;
+  font-size: 0.9rem;
+}
+
+.docs-nav ul {
+  margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.7rem;
+}
+
+.docs-nav a {
+  color: rgba(232, 237, 242, 0.9);
+  text-decoration: none;
+  border: 1px solid var(--cc-border);
+  border-radius: 999px;
+  padding: 0.28rem 0.65rem;
+  font-size: 0.92rem;
 }
 
 .footer {

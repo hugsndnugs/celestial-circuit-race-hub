@@ -1,0 +1,37 @@
+{
+  "lastUpdated": "",
+  "services": [
+    {
+      "component": "Race Controller",
+      "url": "/controller",
+      "state": "operational",
+      "note": "Local route available",
+      "checkedAt": "",
+      "httpStatus": 200
+    },
+    {
+      "component": "Race Hub",
+      "url": "/",
+      "state": "operational",
+      "note": "Local route available",
+      "checkedAt": "",
+      "httpStatus": 200
+    },
+    {
+      "component": "Race Signups",
+      "url": "/signups",
+      "state": "operational",
+      "note": "Local route available",
+      "checkedAt": "",
+      "httpStatus": 200
+    },
+    {
+      "component": "Race Docs",
+      "url": "/docs",
+      "state": "operational",
+      "note": "Local route available",
+      "checkedAt": "",
+      "httpStatus": 200
+    }
+  ]
+}
