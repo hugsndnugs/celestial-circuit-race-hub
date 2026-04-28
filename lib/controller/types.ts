@@ -79,6 +79,19 @@ export interface RaceIncidentNote {
   createdAt: string;
 }
 
+export interface NotificationOutboxEntry {
+  id: string;
+  raceId: string;
+  correctionRequestId: string | null;
+  topic: string;
+  payload: string;
+  status: NotificationStatus;
+  attempts: number;
+  lastError: string | null;
+  sentAt: string | null;
+  createdAt: string;
+}
+
 export interface LeaderboardRow {
   teamId: string;
   teamName: string;

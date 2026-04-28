@@ -1,36 +1,44 @@
 {
-  "lastUpdated": "",
+  "lastUpdated": "2026-04-27T18:17:03.196Z",
   "services": [
     {
       "component": "Race Controller",
-      "url": "/controller",
+      "url": "https://hugsndnugs.github.io/celestial-circuit-race-controller/",
       "state": "operational",
-      "note": "Local route available",
-      "checkedAt": "",
+      "note": "HTTP 200 OK",
+      "checkedAt": "2026-04-27T18:17:03.001Z",
       "httpStatus": 200
     },
     {
       "component": "Race Hub",
-      "url": "/",
+      "url": "https://hugsndnugs.github.io/celestial-circuit-race-hub/",
       "state": "operational",
-      "note": "Local route available",
-      "checkedAt": "",
+      "note": "HTTP 200 OK",
+      "checkedAt": "2026-04-27T18:17:03.067Z",
       "httpStatus": 200
     },
     {
       "component": "Race Signups",
-      "url": "/signups",
+      "url": "https://hugsndnugs.github.io/celestial-circuit-race-signups/",
       "state": "operational",
-      "note": "Local route available",
-      "checkedAt": "",
+      "note": "HTTP 200 OK",
+      "checkedAt": "2026-04-27T18:17:03.068Z",
       "httpStatus": 200
     },
     {
       "component": "Race Docs",
-      "url": "/docs",
+      "url": "https://hugsndnugs.github.io/celestial-circuit-race-docs/",
       "state": "operational",
-      "note": "Local route available",
-      "checkedAt": "",
+      "note": "HTTP 200 OK",
+      "checkedAt": "2026-04-27T18:17:03.070Z",
+      "httpStatus": 200
+    },
+    {
+      "component": "Race Status",
+      "url": "https://hugsndnugs.github.io/celestial-circuit-race-status/",
+      "state": "operational",
+      "note": "HTTP 200 OK",
+      "checkedAt": "2026-04-27T18:17:03.071Z",
       "httpStatus": 200
     }
   ]

@@ -28,6 +28,14 @@ export const relayPassSchema = z.object({
     .transform((value) => value.toLowerCase()),
 });
 
+export const correctionSchema = z.object({
+  raceId: raceRefSchema,
+  supersedesEventId: z.uuid(),
+  recordedBy: z.string().min(1),
+  reason: z.string().min(3),
+  effectiveRecordedAt: z.iso.datetime().optional(),
+});
+
 export const createCorrectionRequestSchema = z.object({
   raceId: raceRefSchema,
   supersedesEventId: z.uuid(),

@@ -7,7 +7,8 @@
     "build": "next build",
     "build:static": "next build",
     "start": "next start",
-    "lint": "eslint app next.config.ts eslint.config.mjs"
+    "lint": "eslint app next.config.ts eslint.config.mjs",
+    "status:probe": "node scripts/probe-services.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.104.1",

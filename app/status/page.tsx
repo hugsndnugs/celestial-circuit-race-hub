@@ -1,22 +1,32 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import serviceList from "@/data/services.json";
 
 type ServiceState = "operational" | "degraded";
 type StatusItem = { component: string; url: string; state: ServiceState; note: string; checkedAt: string; httpStatus: number | null };
 type StatusPayload = { lastUpdated: string; services: StatusItem[] };
+const STALE_AFTER_MS = 30 * 60 * 1000;
 
-const fallbackItems: StatusItem[] = [
-  { component: "Race Controller", url: "/controller", state: "degraded", note: "Status feed unavailable.", checkedAt: "", httpStatus: null },
-  { component: "Race Hub", url: "/", state: "degraded", note: "Status feed unavailable.", checkedAt: "", httpStatus: null },
-  { component: "Race Signups", url: "/signups", state: "degraded", note: "Status feed unavailable.", checkedAt: "", httpStatus: null },
-  { component: "Race Docs", url: "/docs", state: "degraded", note: "Status feed unavailable.", checkedAt: "", httpStatus: null },
-];
+const fallbackItems: StatusItem[] = serviceList.map((service) => ({
+  ...service,
+  state: "degraded",
+  note: "Status feed unavailable. Awaiting probe results.",
+  checkedAt: "",
+  httpStatus: null,
+}));
 
 const formatTimestamp = (value: string | null) => {
   if (!value) return "unknown";
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "unknown" : date.toLocaleString();
+};
+
+const isStale = (lastUpdated: string | null) => {
+  if (!lastUpdated) return true;
+  const time = new Date(lastUpdated).getTime();
+  if (Number.isNaN(time)) return true;
+  return Date.now() - time > STALE_AFTER_MS;
 };
 
 export default function StatusPage() {
@@ -33,9 +43,14 @@ export default function StatusPage() {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const payload = (await response.json()) as StatusPayload;
         if (cancelled) return;
-        setStatusItems(Array.isArray(payload.services) ? payload.services : fallbackItems);
+        const services = Array.isArray(payload.services) ? payload.services : fallbackItems;
+        setStatusItems(services);
         setLastUpdated(payload.lastUpdated || null);
-        setSourceMessage("Live status is sourced from the latest GitHub Actions probe.");
+        if (isStale(payload.lastUpdated || null)) {
+          setSourceMessage("Status data is stale. Probe workflow may be delayed.");
+        } else {
+          setSourceMessage("Live status is sourced from the latest GitHub Actions probe.");
+        }
       } catch {
         if (cancelled) return;
         setStatusItems(fallbackItems);
@@ -55,7 +70,9 @@ export default function StatusPage() {
     <main>
       <section className="card">
         <h1>{pageTitle}</h1>
-        <p className="muted">Real endpoint availability across the Celestial Circuit network.</p>
+        <p className="muted">
+          Real endpoint availability across the Celestial Circuit network, powered by scheduled GitHub Actions probes.
+        </p>
         <p className="muted">{sourceMessage}</p>
         <p className="muted">Last updated: {lastUpdatedLabel}</p>
       </section>

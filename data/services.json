@@ -1,0 +1,22 @@
+[
+  {
+    "component": "Race Controller",
+    "url": "https://hugsndnugs.github.io/celestial-circuit-race-controller/"
+  },
+  {
+    "component": "Race Hub",
+    "url": "https://hugsndnugs.github.io/celestial-circuit-race-hub/"
+  },
+  {
+    "component": "Race Signups",
+    "url": "https://hugsndnugs.github.io/celestial-circuit-race-signups/"
+  },
+  {
+    "component": "Race Docs",
+    "url": "https://hugsndnugs.github.io/celestial-circuit-race-docs/"
+  },
+  {
+    "component": "Race Status",
+    "url": "https://hugsndnugs.github.io/celestial-circuit-race-status/"
+  }
+]

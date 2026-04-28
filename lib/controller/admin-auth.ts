@@ -39,6 +39,12 @@ function getAdminAllowlist(): Set<string> {
   return new Set(emails);
 }
 
+export function isAllowedAdminFromEnv(email: string): boolean {
+  const normalized = normalizeEmail(email);
+  if (!normalized) return false;
+  return getAdminAllowlist().has(normalized);
+}
+
 async function isAllowedAdminFromSupabase(email: string): Promise<boolean> {
   const normalized = normalizeEmail(email);
   if (!normalized) return false;
@@ -60,7 +66,7 @@ export async function isAllowedAdmin(email: string): Promise<boolean> {
   if (!normalized) return false;
   const fromSupabase = await isAllowedAdminFromSupabase(normalized);
   if (fromSupabase) return true;
-  return getAdminAllowlist().has(normalized);
+  return isAllowedAdminFromEnv(normalized);
 }
 
 export async function getCurrentUserEmail(): Promise<string | null> {
@@ -73,12 +79,53 @@ export async function getCurrentUserEmail(): Promise<string | null> {
   return email ? normalizeEmail(email) : null;
 }
 
+async function getAdminDisplayNameFromSupabase(email: string): Promise<string | null> {
+  const normalized = normalizeEmail(email);
+  if (!normalized) return null;
+  const { data, error } = await supabase
+    .from("admin_users")
+    .select("display_name")
+    .eq("email", normalized)
+    .eq("is_active", true)
+    .limit(1)
+    .maybeSingle();
+  if (error) return null;
+  return normalizeDisplayName((data as { display_name?: string | null } | null)?.display_name);
+}
+
+function getMetadataDisplayName(metadata: Record<string, unknown> | undefined): string | null {
+  const raceDirectorName = metadata?.race_director_name;
+  if (typeof raceDirectorName === "string") return normalizeDisplayName(raceDirectorName);
+  const fullName = metadata?.full_name;
+  if (typeof fullName === "string") return normalizeDisplayName(fullName);
+  const name = metadata?.name;
+  if (typeof name === "string") return normalizeDisplayName(name);
+  return null;
+}
+
 export async function getCurrentAdminIdentity(): Promise<AdminIdentity | null> {
-  const email = await getCurrentUserEmail();
-  if (!email) return null;
+  const { data: sessionData } = await supabase.auth.getSession();
+  const sessionUser = sessionData.session?.user ?? null;
+  const sessionEmail = sessionUser?.email;
+  const sessionMetadata = sessionUser?.user_metadata as Record<string, unknown> | undefined;
+  const metadataName = getMetadataDisplayName(sessionMetadata);
+  if (sessionEmail) {
+    const normalized = normalizeEmail(sessionEmail);
+    const dbName = await getAdminDisplayNameFromSupabase(normalized);
+    return {
+      email: normalized,
+      displayName: dbName ?? metadataName ?? fallbackDisplayNameFromEmail(normalized),
+    };
+  }
+  const { data, error } = await supabase.auth.getUser();
+  if (error || !data.user?.email) return null;
+  const normalized = normalizeEmail(data.user.email);
+  const userMetadata = data.user.user_metadata as Record<string, unknown> | undefined;
+  const metadataNameFromUser = getMetadataDisplayName(userMetadata);
+  const dbName = await getAdminDisplayNameFromSupabase(normalized);
   return {
-    email,
-    displayName: fallbackDisplayNameFromEmail(email),
+    email: normalized,
+    displayName: dbName ?? metadataNameFromUser ?? fallbackDisplayNameFromEmail(normalized),
   };
 }
 
@@ -91,6 +138,12 @@ export async function updateCurrentAdminDisplayName(displayName: string): Promis
     data: { race_director_name: normalizedDisplayName },
   });
   if (metadataError) throw new Error(metadataError.message);
+  const { error: adminUsersError } = await supabase
+    .from("admin_users")
+    .update({ display_name: normalizedDisplayName })
+    .eq("email", identity.email)
+    .eq("is_active", true);
+  if (adminUsersError) throw new Error(adminUsersError.message);
   return { email: identity.email, displayName: normalizedDisplayName };
 }
 
