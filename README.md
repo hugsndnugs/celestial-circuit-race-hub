@@ -33,8 +33,12 @@ Copy `.env.example` to `.env.local` and set values as needed.
 
 1. Push to `main`.
 2. In repository Settings > Pages, set **Source** to **GitHub Actions**.
-3. The workflow `.github/workflows/deploy-pages.yml` builds with `next build` and deploys the `out` folder.
-4. Your site will be served at:
+3. Configure GitHub Actions build env for this repository:
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - Add them as repository/environment Variables (preferred) or Secrets with the same names.
+4. The workflow `.github/workflows/deploy-pages.yml` builds with `next build` and deploys the `out` folder.
+5. Your site will be served at:
    - `https://<github-user>.github.io/celestial-circuit-race-hub/`
 
 The Next.js config automatically sets `basePath`/`assetPrefix` during GitHub Actions builds for project-site URLs and serves all merged routes from one deployment.
