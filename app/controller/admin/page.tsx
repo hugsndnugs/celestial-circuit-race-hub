@@ -495,17 +495,17 @@ export default function AdminPage() {
   const signedInLabel = getSignedInLabel(authIdentity);
 
   return (
-    <main>
+    <main className="admin-main">
       <h1>Admin Console</h1>
       <p>Use this page for setup, race operations, and correction audits.</p>
-      <section className="card">
+      <section className="card admin-card">
         <h2>Admin Access</h2>
         {authLoading ? (
           <p>Checking session...</p>
         ) : authIdentity ? (
           <>
             <p>Signed in as {signedInLabel}</p>
-            <form onSubmit={saveDisplayName}>
+            <form className="admin-form" onSubmit={saveDisplayName}>
               <label htmlFor="displayName">Race director name</label>
               <input
                 id="displayName"
@@ -527,7 +527,7 @@ export default function AdminPage() {
             ) : null}
           </>
         ) : (
-          <form onSubmit={sendMagicLink}>
+          <form className="admin-form" onSubmit={sendMagicLink}>
             <label htmlFor="adminSignInEmail">Admin email</label>
             <input
               id="adminSignInEmail"
@@ -539,7 +539,7 @@ export default function AdminPage() {
             <button type="submit">Send magic link</button>
             <p>
               If you keep returning to this form, ensure Supabase Auth URL settings allow
-              <code> {currentPageUrl || "/"}</code>.
+              <code>{` ${currentPageUrl || "/"}`}</code>.
             </p>
           </form>
         )}
@@ -549,7 +549,7 @@ export default function AdminPage() {
       {accessAllowed ? (
         <>
 
-      <section className="card">
+      <section className="card admin-card">
         <h2>Race Finder</h2>
         <button type="button" onClick={() => void refreshRaces()}>
           Refresh races
@@ -579,56 +579,61 @@ export default function AdminPage() {
         </div>
       </section>
 
-      <section className="card">
+      <section className="card admin-card">
         <h2>Pending Signup Queue</h2>
         <p>Review incoming signups and assign them to a planned race.</p>
         {pendingSignups.length === 0 ? (
           <p>No pending signup requests.</p>
         ) : (
-          <ul>
+          <ul className="admin-list">
             {pendingSignups.map((signup) => {
               const selectedSignupRace = signupRaceSelections[signup.id] ?? raceRef;
               const isBusy = signupActionLoadingId === signup.id;
               return (
-                <li key={signup.id}>
-                  <strong>{signup.teamName}</strong> - captain: {signup.captainDiscord}
-                  {signup.contactEmail ? ` - ${signup.contactEmail}` : ""}
-                  <br />
-                  Submitted {formatDateTime(signup.submittedAt)}
-                  {signup.teammatesDiscord ? ` - teammates: ${signup.teammatesDiscord}` : ""}
-                  {signup.notes ? ` - notes: ${signup.notes}` : ""}
-                  <br />
+                <li key={signup.id} className="admin-list-item">
+                  <p className="admin-meta">
+                    <strong>{signup.teamName}</strong> - captain: {signup.captainDiscord}
+                    {signup.contactEmail ? ` - ${signup.contactEmail}` : ""}
+                  </p>
+                  <p className="admin-meta">
+                    Submitted {formatDateTime(signup.submittedAt)}
+                    {signup.teammatesDiscord ? ` - teammates: ${signup.teammatesDiscord}` : ""}
+                    {signup.notes ? ` - notes: ${signup.notes}` : ""}
+                  </p>
                   <label htmlFor={`signup-race-${signup.id}`}>Assign to race</label>
-                  <select
-                    id={`signup-race-${signup.id}`}
-                    value={selectedSignupRace}
-                    onChange={(eventItem) => setSignupRace(signup.id, eventItem.target.value)}
-                    disabled={isBusy}
-                  >
-                    <option value="">Select race</option>
-                    {races
-                      .filter((race) => race.status === "planned")
-                      .map((race) => (
-                        <option key={race.id} value={race.code}>
-                          {race.code} - {race.name}
-                        </option>
-                      ))}
-                  </select>{" "}
-                  <button
-                    type="button"
-                    onClick={() => void approveSignup(signup)}
-                    disabled={isBusy || !selectedSignupRace}
-                  >
-                    {isBusy ? "Working..." : "Approve to race"}
-                  </button>{" "}
-                  <button
-                    type="button"
-                    className="secondary"
-                    onClick={() => void rejectSignup(signup)}
-                    disabled={isBusy}
-                  >
-                    Reject
-                  </button>
+                  <div className="admin-actions">
+                    <select
+                      id={`signup-race-${signup.id}`}
+                      className="admin-inline-control"
+                      value={selectedSignupRace}
+                      onChange={(eventItem) => setSignupRace(signup.id, eventItem.target.value)}
+                      disabled={isBusy}
+                    >
+                      <option value="">Select race</option>
+                      {races
+                        .filter((race) => race.status === "planned")
+                        .map((race) => (
+                          <option key={race.id} value={race.code}>
+                            {race.code} - {race.name}
+                          </option>
+                        ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => void approveSignup(signup)}
+                      disabled={isBusy || !selectedSignupRace}
+                    >
+                      {isBusy ? "Working..." : "Approve to race"}
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary"
+                      onClick={() => void rejectSignup(signup)}
+                      disabled={isBusy}
+                    >
+                      Reject
+                    </button>
+                  </div>
                 </li>
               );
             })}
@@ -636,7 +641,7 @@ export default function AdminPage() {
         )}
       </section>
 
-      <section className="card">
+      <section className="card admin-card">
         <h2>Selected Race</h2>
         {selectedRace ? (
           <p>
@@ -654,9 +659,9 @@ export default function AdminPage() {
         </button>
       </section>
 
-      <section className="card">
+      <section className="card admin-card">
         <h2>Create Race</h2>
-        <form onSubmit={handleCreateRace}>
+        <form className="admin-form" onSubmit={handleCreateRace}>
           <label htmlFor="raceName">Race name</label>
           <input id="raceName" value={raceName} onChange={(e) => setRaceName(e.target.value)} />
           <label htmlFor="relayPoints">Relay points (one per line)</label>
@@ -665,9 +670,9 @@ export default function AdminPage() {
         </form>
       </section>
 
-      <section className="card">
+      <section className="card admin-card">
         <h2>Register Team</h2>
-        <form onSubmit={handleCreateTeam}>
+        <form className="admin-form" onSubmit={handleCreateTeam}>
           <label htmlFor="raceRef">Race Code</label>
           <input id="raceRef" value={raceRef} onChange={(e) => setRaceRef(e.target.value)} placeholder="solar-fox-42" />
           <label htmlFor="teamName">Team name</label>
@@ -680,19 +685,21 @@ export default function AdminPage() {
         </form>
       </section>
 
-      <section className="card">
+      <section className="card admin-card">
         <h2>Race Lifecycle</h2>
-        <button type="button" onClick={startRace} disabled={!raceRef || selectedRace?.status !== "planned"}>
-          Start race
-        </button>{" "}
-        <button type="button" className="secondary" onClick={completeRace} disabled={!raceRef || selectedRace?.status !== "active"}>
-          Complete race
-        </button>
+        <div className="admin-actions">
+          <button type="button" onClick={startRace} disabled={!raceRef || selectedRace?.status !== "planned"}>
+            Start race
+          </button>
+          <button type="button" className="secondary" onClick={completeRace} disabled={!raceRef || selectedRace?.status !== "active"}>
+            Complete race
+          </button>
+        </div>
       </section>
 
-      <section className="card">
+      <section className="card admin-card">
         <h2>Public Race Status Controls</h2>
-        <form onSubmit={saveRaceStatusDetails}>
+        <form className="admin-form" onSubmit={saveRaceStatusDetails}>
           <label htmlFor="statusNoteInput">Public status note</label>
           <input
             id="statusNoteInput"
@@ -723,7 +730,7 @@ export default function AdminPage() {
         </form>
       </section>
 
-      <section className="card">
+      <section className="card admin-card">
         <h2>Live Ops</h2>
         {!selectedRace ? (
           <p>Select a race to view operational metrics.</p>
@@ -732,9 +739,11 @@ export default function AdminPage() {
             <p>Status: {selectedRace.status}</p>
             <p>Event throughput: {events.length} total, {recentEventCount} in last 5 minutes</p>
             <p>Pending corrections: {pendingRequestCount}</p>
-            <button type="button" className="secondary" onClick={() => void refreshRaceContext(raceRef)} disabled={!raceRef}>
-              Refresh now
-            </button>
+            <div className="admin-actions">
+              <button type="button" className="secondary" onClick={() => void refreshRaceContext(raceRef)} disabled={!raceRef}>
+                Refresh now
+              </button>
+            </div>
             <label htmlFor="autoRefreshLiveOps">
               <input
                 id="autoRefreshLiveOps"
@@ -748,9 +757,9 @@ export default function AdminPage() {
         )}
       </section>
 
-      <section className="card">
+      <section className="card admin-card">
         <h2>Correction Workspace</h2>
-        <form onSubmit={submitCorrectionRequest}>
+        <form className="admin-form" onSubmit={submitCorrectionRequest}>
           <label htmlFor="supersededEvent">Superseded event ID</label>
           <input
             id="supersededEvent"
@@ -769,9 +778,8 @@ export default function AdminPage() {
           />
           {correctionTarget ? (
             <p>
-              Target preview: {eventTeamMap.get(correctionTarget.teamId) ?? correctionTarget.teamId} at{" "}
-              {eventRelayPointMap.get(correctionTarget.relayPointId) ?? correctionTarget.relayPointId}
-              {" "}captured {formatDateTime(correctionTarget.recordedAt)} and currently used as {formatDateTime(correctionTarget.effectiveRecordedAt)}
+              Target preview: {eventTeamMap.get(correctionTarget.teamId) ?? correctionTarget.teamId} at
+              {` ${eventRelayPointMap.get(correctionTarget.relayPointId) ?? correctionTarget.relayPointId} captured ${formatDateTime(correctionTarget.recordedAt)} and currently used as ${formatDateTime(correctionTarget.effectiveRecordedAt)}`}
             </p>
           ) : (
             <p>Paste an event ID to preview target details before submitting.</p>
@@ -782,7 +790,7 @@ export default function AdminPage() {
         </form>
       </section>
 
-      <section className="card">
+      <section className="card admin-card">
         <h2>Triage Queue</h2>
         <label htmlFor="queueStatusFilter">Status filter</label>
         <select
@@ -800,21 +808,21 @@ export default function AdminPage() {
         {visibleRequests.length === 0 ? (
           <p>No correction requests in this filter.</p>
         ) : (
-          <ul>
+          <ul className="admin-list">
             {visibleRequests.map((requestItem) => (
-              <li key={requestItem.id}>
-                {requestItem.status.toUpperCase()} - request {requestItem.id.slice(0, 8)} - submitted{" "}
-                {formatDateTime(requestItem.submittedAt)} - effective {formatDateTime(requestItem.effectiveRecordedAt)}
-                {" "}
+              <li key={requestItem.id} className="admin-list-item">
+                <p className="admin-meta">
+                  {`${requestItem.status.toUpperCase()} - request ${requestItem.id.slice(0, 8)} - submitted ${formatDateTime(requestItem.submittedAt)} - effective ${formatDateTime(requestItem.effectiveRecordedAt)}`}
+                </p>
                 {requestItem.status === "pending" ? (
-                  <>
+                  <div className="admin-actions">
                     <button type="button" className="secondary" onClick={() => void approveRequest(requestItem.id)}>
                       Apply
-                    </button>{" "}
+                    </button>
                     <button type="button" className="secondary" onClick={() => void rejectRequest(requestItem.id)}>
                       Reject
                     </button>
-                  </>
+                  </div>
                 ) : null}
               </li>
             ))}
@@ -822,36 +830,39 @@ export default function AdminPage() {
         )}
       </section>
 
-      <section className="card">
+      <section className="card admin-card">
         <h2>Event Timeline</h2>
         <p>Select an event to auto-fill the correction target.</p>
         {events.length === 0 ? (
           <p>No events recorded yet.</p>
         ) : (
-          <ul>
+          <ul className="admin-list">
             {events.map((eventItem) => (
-              <li key={eventItem.id}>
-                <button
-                  type="button"
-                  className={supersededEventId === eventItem.id ? "secondary selected" : "secondary"}
-                  onClick={() => selectCorrectionTarget(eventItem.id)}
-                >
-                  {supersededEventId === eventItem.id ? "Selected" : "Select"}
-                </button>{" "}
-                {formatDateTime(eventItem.recordedAt)} - {formatEventSource(eventItem.source)} -{" "}
-                {eventTeamMap.get(eventItem.teamId) ?? "Unknown team"} @ {eventRelayPointMap.get(eventItem.relayPointId) ?? "Unknown relay point"}
-                {eventItem.invalidatedByEventId ? " (invalidated)" : ""}
-                {eventItem.effectiveRecordedAt === eventItem.recordedAt ? "" : ` (effective: ${formatDateTime(eventItem.effectiveRecordedAt)})`}
-                {eventItem.correctionReason ? ` (reason: ${eventItem.correctionReason})` : ""}
+              <li key={eventItem.id} className="admin-list-item">
+                <div className="admin-actions">
+                  <button
+                    type="button"
+                    className={supersededEventId === eventItem.id ? "secondary selected" : "secondary"}
+                    onClick={() => selectCorrectionTarget(eventItem.id)}
+                  >
+                    {supersededEventId === eventItem.id ? "Selected" : "Select"}
+                  </button>
+                </div>
+                <p className="admin-meta">
+                  {`${formatDateTime(eventItem.recordedAt)} - ${formatEventSource(eventItem.source)} - ${eventTeamMap.get(eventItem.teamId) ?? "Unknown team"} @ ${eventRelayPointMap.get(eventItem.relayPointId) ?? "Unknown relay point"}`}
+                  {eventItem.invalidatedByEventId ? " (invalidated)" : ""}
+                  {eventItem.effectiveRecordedAt === eventItem.recordedAt ? "" : ` (effective: ${formatDateTime(eventItem.effectiveRecordedAt)})`}
+                  {eventItem.correctionReason ? ` (reason: ${eventItem.correctionReason})` : ""}
+                </p>
               </li>
             ))}
           </ul>
         )}
       </section>
 
-      <section className="card">
+      <section className="card admin-card">
         <h2>Race Incident Notes</h2>
-        <form onSubmit={submitIncidentNote}>
+        <form className="admin-form" onSubmit={submitIncidentNote}>
           <label htmlFor="incidentNote">Incident note</label>
           <textarea
             id="incidentNote"
@@ -867,10 +878,10 @@ export default function AdminPage() {
         {incidentNotes.length === 0 ? (
           <p>No incident notes for this race.</p>
         ) : (
-          <ul>
+          <ul className="admin-list">
             {incidentNotes.map((note) => (
-              <li key={note.id}>
-                {formatDateTime(note.createdAt)} - {note.createdByName} - {note.note}
+              <li key={note.id} className="admin-list-item">
+                <p className="admin-meta">{formatDateTime(note.createdAt)} - {note.createdByName} - {note.note}</p>
               </li>
             ))}
           </ul>
