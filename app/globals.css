@@ -5,6 +5,28 @@
   --cc-border: #293445;
   --cc-primary: #1971ff;
   --cc-form: #0d1219;
+  --cc-input-border: #314258;
+  --cc-secondary-bg: #1b2635;
+  --cc-secondary-border: #32455e;
+  --cc-selected-bg: #25496f;
+  --cc-selected-border: #4b79aa;
+
+  --space-2xs: 0.2rem;
+  --space-xs: 0.35rem;
+  --space-sm: 0.5rem;
+  --space-md: 0.75rem;
+  --space-lg: 1rem;
+  --space-xl: 1.3rem;
+  --space-2xl: 1.6rem;
+  --space-3xl: 2rem;
+
+  --page-max-width: 1140px;
+  --page-pad-x: 1.8rem;
+  --page-pad-y-top: 1.6rem;
+  --page-pad-y-bottom: 2rem;
+  --card-radius: 0.75rem;
+  --control-radius: 0.5rem;
+  --field-radius: 0.45rem;
 
   font-family: var(--font-body), Arial, sans-serif;
   color: var(--cc-text);
@@ -24,14 +46,21 @@ body {
 }
 
 main {
-  max-width: 1140px;
+  max-width: var(--page-max-width);
   margin: 0 auto;
-  padding: 1.6rem 1.8rem 2rem;
+  padding: var(--page-pad-y-top) var(--page-pad-x) var(--page-pad-y-bottom);
 }
 
-.docs-main {
+.page-stack,
+.docs-main,
+.admin-main {
   display: grid;
-  gap: 1rem;
+  gap: var(--space-lg);
+}
+
+.section-stack {
+  display: grid;
+  gap: var(--space-md);
 }
 
 .brand-header {
@@ -42,12 +71,12 @@ main {
 }
 
 .brand-link {
-  max-width: 1140px;
+  max-width: var(--page-max-width);
   margin: 0 auto;
-  padding: 0.85rem 1.8rem 0.75rem;
+  padding: 0.85rem var(--page-pad-x) var(--space-md);
   display: inline-flex;
   align-items: center;
-  gap: 1rem;
+  gap: var(--space-lg);
   text-decoration: none;
 }
 
@@ -58,6 +87,14 @@ main {
 
 .brand-link-static {
   cursor: default;
+}
+
+.brand-header-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  line-height: 1.2;
 }
 
 .brand-logo {
@@ -91,6 +128,17 @@ main {
   color: rgba(232, 237, 242, 0.7);
 }
 
+.brand-title {
+  font-size: 2rem;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.brand-intro {
+  margin: var(--space-sm) 0 0;
+  color: rgba(232, 237, 242, 0.85);
+}
+
 .brand-link:hover .brand-name,
 .brand-link:focus-visible .brand-name {
   text-decoration: underline;
@@ -104,23 +152,18 @@ main {
 .card {
   background: var(--cc-card);
   border: 1px solid var(--cc-border);
-  border-radius: 0.75rem;
-  padding: 1.3rem;
-}
-
-.admin-main {
-  display: grid;
-  gap: 1rem;
+  border-radius: var(--card-radius);
+  padding: var(--space-xl);
 }
 
 .admin-card {
   display: grid;
-  gap: 1rem;
+  gap: var(--space-lg);
 }
 
 .admin-form {
   display: grid;
-  gap: 0.75rem;
+  gap: var(--space-md);
 }
 
 .admin-actions {
@@ -140,12 +183,12 @@ main {
   padding: 0;
   list-style: none;
   display: grid;
-  gap: 0.75rem;
+  gap: var(--space-md);
 }
 
 .admin-list-item {
   display: grid;
-  gap: 0.5rem;
+  gap: var(--space-sm);
   padding: 0.65rem 0.7rem;
   border: 1px solid var(--cc-border);
   border-radius: 0.55rem;
@@ -161,7 +204,7 @@ main {
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 1rem;
+  gap: var(--space-lg);
 }
 
 .docs-main .grid > .card {
@@ -189,7 +232,17 @@ h2 {
 }
 
 p {
-  margin: 0.5rem 0 0;
+  margin: var(--space-sm) 0 0;
+}
+
+ul,
+ol {
+  margin: var(--space-sm) 0 0;
+  padding-left: 1.2rem;
+}
+
+li + li {
+  margin-top: var(--space-xs);
 }
 
 a.cc-link {
@@ -198,15 +251,15 @@ a.cc-link {
   background: var(--cc-primary);
   color: #fff;
   border: 0;
-  border-radius: 0.5rem;
+  border-radius: var(--control-radius);
   padding: 0.65rem 0.95rem;
   font-weight: 700;
   text-decoration: none;
 }
 
 a.cc-link.secondary {
-  background: #1b2635;
-  border: 1px solid #32455e;
+  background: var(--cc-secondary-bg);
+  border: 1px solid var(--cc-secondary-border);
 }
 
 .muted {
@@ -216,18 +269,18 @@ a.cc-link.secondary {
 .cc-card {
   background: var(--cc-card);
   border: 1px solid var(--cc-border);
-  border-radius: 0.75rem;
-  padding: 1.3rem;
+  border-radius: var(--card-radius);
+  padding: var(--space-xl);
 }
 
 .cc-input {
   width: 100%;
   background: #0d1219;
   color: #e8edf2;
-  border: 1px solid #314258;
-  border-radius: 0.45rem;
+  border: 1px solid var(--cc-input-border);
+  border-radius: var(--field-radius);
   padding: 0.62rem 0.7rem;
-  margin: 0.35rem 0 1rem;
+  margin: var(--space-xs) 0 var(--space-lg);
   font-size: 1rem;
 }
 
@@ -241,7 +294,7 @@ a.cc-link.secondary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 0.5rem;
+  border-radius: var(--control-radius);
   border: 0;
   background: var(--cc-primary);
   color: #fff;
@@ -252,7 +305,7 @@ a.cc-link.secondary {
 
 .card label {
   display: block;
-  margin: 0.35rem 0 0.2rem;
+  margin: var(--space-xs) 0 var(--space-2xs);
   font-size: 0.95rem;
   color: rgba(232, 237, 242, 0.9);
 }
@@ -264,10 +317,10 @@ a.cc-link.secondary {
   appearance: none;
   background: #0d1219;
   color: #e8edf2;
-  border: 1px solid #314258;
-  border-radius: 0.45rem;
+  border: 1px solid var(--cc-input-border);
+  border-radius: var(--field-radius);
   padding: 0.62rem 0.7rem;
-  margin: 0.2rem 0 1rem;
+  margin: var(--space-2xs) 0 var(--space-lg);
   font-size: 1rem;
   font-family: inherit;
 }
@@ -282,7 +335,7 @@ a.button-link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 0.5rem;
+  border-radius: var(--control-radius);
   border: 0;
   background: var(--cc-primary);
   color: #fff;
@@ -294,16 +347,16 @@ a.button-link {
 
 .card button.secondary,
 a.button-link.secondary {
-  background: #1b2635;
-  border: 1px solid #32455e;
+  background: var(--cc-secondary-bg);
+  border: 1px solid var(--cc-secondary-border);
 }
 
 .card button.selected,
 .card button.secondary.selected,
 a.button-link.selected,
 a.button-link.secondary.selected {
-  background: #25496f;
-  border: 1px solid #4b79aa;
+  background: var(--cc-selected-bg);
+  border: 1px solid var(--cc-selected-border);
 }
 
 .card button:disabled,
@@ -332,7 +385,7 @@ a.button-link[aria-disabled="true"] {
   list-style: none;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: var(--space-sm);
 }
 
 .docs-nav a {
@@ -340,7 +393,7 @@ a.button-link[aria-disabled="true"] {
   text-decoration: none;
   border: 1px solid var(--cc-border);
   border-radius: 999px;
-  padding: 0.35rem 0.72rem;
+  padding: var(--space-xs) 0.72rem;
   font-size: 0.92rem;
   transition: background-color 120ms ease-in-out, border-color 120ms ease-in-out;
 }
@@ -358,6 +411,68 @@ a.button-link[aria-disabled="true"] {
   color: rgba(232, 237, 242, 0.62);
 }
 
+.signup-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: var(--space-2xl);
+}
+
+.signup-main {
+  width: 100%;
+}
+
+.signup-form-card {
+  position: relative;
+  width: 100%;
+  max-width: 48rem;
+  margin: 0 auto;
+}
+
+.signup-submitted-card {
+  max-width: 48rem;
+  margin: 0 auto;
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.signup-title {
+  margin: 0;
+  font-family: var(--font-brand), sans-serif;
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.signup-copy {
+  color: rgba(232, 237, 242, 0.85);
+}
+
+.signup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs);
+  padding-top: var(--space-2xs);
+}
+
+.signup-helper {
+  color: rgba(232, 237, 242, 0.6);
+}
+
+.signup-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.9rem;
+}
+
+.signup-footer {
+  margin: 0 auto;
+  max-width: 48rem;
+  text-align: center;
+  font-size: 0.75rem;
+  color: rgba(232, 237, 242, 0.5);
+}
+
 @media (max-width: 840px) {
   .brand-logo {
     width: 155px;
@@ -370,6 +485,14 @@ a.button-link[aria-disabled="true"] {
 
   main {
     padding: 1.2rem 1rem 1.4rem;
+  }
+
+  .signup-shell {
+    gap: var(--space-xl);
+  }
+
+  .signup-title {
+    font-size: 1.7rem;
   }
 
   .admin-inline-control {

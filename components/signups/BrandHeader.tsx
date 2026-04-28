@@ -6,10 +6,14 @@ type BrandHeaderProps = {
   centered?: boolean;
 };
 
-export function BrandHeader({ title, clickable = true, centered = false }: Readonly<BrandHeaderProps>) {
+export function BrandHeader({
+  title = "Team Signup",
+  clickable = true,
+  centered = false,
+}: Readonly<BrandHeaderProps>) {
   const headerContent = (
-    <div className="flex flex-col items-center text-center leading-tight">
-      <span className="brand-name">Team Signup</span>
+    <div className="brand-header-content">
+      <span className="brand-name">Race Operations Hub</span>
       {title ? <span className="brand-subtitle">{title}</span> : null}
     </div>
   );

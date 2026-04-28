@@ -15,20 +15,20 @@ function SubmittedContent() {
     return { title: "Thank you", body: "Your team signup was received. Organizers will review pending registrations before race day." };
   }, [reason]);
   return (
-    <div className="cc-card mx-auto max-w-3xl space-y-4">
-      <h1 className="font-brand text-3xl font-semibold tracking-wide">{copy.title}</h1>
-      <p className="text-cc-text/85">{copy.body}</p>
-      <Link href="/signups" className="cc-btn-primary inline-flex">Back to form</Link>
+    <div className="cc-card signup-submitted-card">
+      <h1 className="signup-title">{copy.title}</h1>
+      <p className="signup-copy">{copy.body}</p>
+      <Link href="/signups" className="cc-btn-primary">Back to form</Link>
     </div>
   );
 }
 
 export default function SubmittedPage() {
   return (
-    <div className="min-h-screen">
+    <div className="signup-shell">
       <BrandHeader title="Confirmation" />
-      <main className="mx-auto max-w-[1140px] px-4 py-8 sm:px-7">
-        <Suspense fallback={<div className="cc-card mx-auto max-w-3xl">Loading...</div>}>
+      <main className="signup-main page-stack">
+        <Suspense fallback={<div className="cc-card signup-submitted-card">Loading...</div>}>
           <SubmittedContent />
         </Suspense>
       </main>

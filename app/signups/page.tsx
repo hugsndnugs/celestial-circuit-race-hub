@@ -1,14 +1,18 @@
-import { BrandHeader } from "@/components/signups/BrandHeader";
 import { SignupForm } from "@/components/signups/SignupForm";
 
 export default function SignupsPage() {
   return (
-    <div className="flex min-h-screen flex-col gap-8 px-4 py-10 sm:px-6">
-      <BrandHeader centered clickable={false} />
-      <main className="flex-1">
+    <div className="signup-shell">
+      <main className="signup-main page-stack">
+        <section className="card signup-form-card">
+          <h1>Team Signup</h1>
+          <p className="muted">
+            Register your team for organizer review before race day.
+          </p>
+        </section>
         <SignupForm />
       </main>
-      <footer className="mx-auto max-w-3xl text-center text-xs text-cc-text/50">Celestial Circuit — public team registration intake.</footer>
+      <footer className="signup-footer">Celestial Circuit - public team registration intake.</footer>
     </div>
   );
 }

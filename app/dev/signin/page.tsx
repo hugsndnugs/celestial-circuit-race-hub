@@ -67,7 +67,7 @@ export default function DeveloperSignInPage() {
   }
 
   return (
-    <main>
+    <main className="page-stack">
       <section className="card">
         <h1>Developer Sign-In</h1>
         <p className="muted">Sign in for internal engineering docs access. This does not grant race director controls.</p>
@@ -90,7 +90,7 @@ export default function DeveloperSignInPage() {
             </button>
           </>
         ) : (
-          <form onSubmit={sendMagicLink}>
+          <form onSubmit={sendMagicLink} className="section-stack">
             <label htmlFor="devSignInEmail">Developer email</label>
             <input
               id="devSignInEmail"

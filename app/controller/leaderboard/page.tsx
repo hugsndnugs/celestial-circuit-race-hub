@@ -21,13 +21,16 @@ export default function LeaderboardPage() {
   }
 
   return (
-    <main>
-      <h1>Leaderboard</h1>
-      <div className="card">
+    <main className="page-stack">
+      <section className="card">
+        <h1>Leaderboard</h1>
+        <p>View current standings by relay progress and elapsed time.</p>
+      </section>
+      <section className="card section-stack">
         <label htmlFor="leaderboardRaceId">Race Code</label>
         <input id="leaderboardRaceId" value={raceRef} onChange={(event) => setRaceRef(event.target.value)} placeholder="solar-fox-42" />
         <button type="button" onClick={refresh}>Refresh</button>
-      </div>
+      </section>
       <section className="card">
         <h2>Standings</h2>
         {rows.length === 0 ? (
@@ -42,7 +45,9 @@ export default function LeaderboardPage() {
           </ol>
         )}
       </section>
-      <p>{message}</p>
+      <section className="card">
+        <p>{message}</p>
+      </section>
     </main>
   );
 }

@@ -73,7 +73,7 @@ export default function StatusPage() {
   );
 
   return (
-    <main>
+    <main className="page-stack">
       <section className="card">
         <h1>{pageTitle}</h1>
         <p className="muted">

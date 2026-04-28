@@ -48,30 +48,35 @@ export default function MarshalPage() {
   }
 
   return (
-    <main>
-      <h1>Marshal View</h1>
-      <div className="card">
+    <main className="page-stack">
+      <section className="card">
+        <h1>Marshal View</h1>
+        <p>Load a race and log relay passes from field devices.</p>
+      </section>
+      <section className="card section-stack">
         <label htmlFor="marshalRaceId">Race Code</label>
         <input id="marshalRaceId" value={raceRef} onChange={(e) => setRaceRef(e.target.value)} placeholder="solar-fox-42" />
         <button type="button" onClick={loadRaceContext}>Load race</button>
-      </div>
-      <div className="card">
+      </section>
+      <section className="card section-stack">
         <label htmlFor="relayPoint">Relay point</label>
         <select id="relayPoint" value={selectedRelayPointId} onChange={(e) => setSelectedRelayPointId(e.target.value)}>
           {relayPoints.map((relayPoint) => (
             <option value={relayPoint.id} key={relayPoint.id}>{relayPoint.name}</option>
           ))}
         </select>
-      </div>
-      <div className="grid">
+      </section>
+      <section className="grid" aria-label="Team pass controls">
         {teams.map((team) => (
           <div className="card" key={team.id}>
             <h2>{team.name}</h2>
             <button type="button" onClick={() => markPassed(team.id)} disabled={!selectedRelayPointId}>Mark Passed</button>
           </div>
         ))}
-      </div>
-      <p>{message}</p>
+      </section>
+      <section className="card">
+        <p>{message}</p>
+      </section>
     </main>
   );
 }

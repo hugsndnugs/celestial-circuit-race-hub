@@ -98,8 +98,8 @@ export function SignupForm() {
   );
 
   return (
-    <form onSubmit={onSubmit} className="cc-card relative mx-auto max-w-3xl space-y-5" noValidate>
-      <p className="text-cc-text/80">
+    <form onSubmit={onSubmit} className="cc-card signup-form-card section-stack" noValidate>
+      <p className="signup-copy">
         Register with your team name and Discord mentions. An email is optional if you want a non-Discord fallback for organizers.
       </p>
       {configError ? <p className="cc-error">{configError}</p> : null}
@@ -109,37 +109,37 @@ export function SignupForm() {
           Team name
         </label>
         <input id="team_name" name="team_name" className="cc-input" required value={values.team_name} onChange={(e) => setValues((v) => ({ ...v, team_name: e.target.value }))} />
-        {errors.team_name ? <p className="cc-error mt-1">{errors.team_name}</p> : null}
+        {errors.team_name ? <p className="cc-error">{errors.team_name}</p> : null}
       </div>
       <div>
         <label className="cc-label" htmlFor="captain_discord">
           Captain Discord
         </label>
         <input id="captain_discord" name="captain_discord" className="cc-input" required placeholder="@captain or <@123456789012345678>" autoComplete="off" value={values.captain_discord} onChange={(e) => setValues((v) => ({ ...v, captain_discord: e.target.value }))} />
-        {errors.captain_discord ? <p className="cc-error mt-1">{errors.captain_discord}</p> : null}
+        {errors.captain_discord ? <p className="cc-error">{errors.captain_discord}</p> : null}
       </div>
       <div>
         <label className="cc-label" htmlFor="teammates_discord">
-          Teammates Discord <span className="text-cc-text/60">(optional)</span>
+          Teammates Discord <span className="signup-helper">(optional)</span>
         </label>
-        <textarea id="teammates_discord" name="teammates_discord" rows={4} className="cc-input font-mono text-sm" placeholder={"@player1\n@player2\n<@123456789012345678>"} value={values.teammates_discord} onChange={(e) => setValues((v) => ({ ...v, teammates_discord: e.target.value }))} />
-        {errors.teammates_discord ? <p className="cc-error mt-1">{errors.teammates_discord}</p> : null}
+        <textarea id="teammates_discord" name="teammates_discord" rows={4} className="cc-input signup-mono" placeholder={"@player1\n@player2\n<@123456789012345678>"} value={values.teammates_discord} onChange={(e) => setValues((v) => ({ ...v, teammates_discord: e.target.value }))} />
+        {errors.teammates_discord ? <p className="cc-error">{errors.teammates_discord}</p> : null}
       </div>
       <div>
         <label className="cc-label" htmlFor="contact_email">
-          Contact email <span className="text-cc-text/60">(optional)</span>
+          Contact email <span className="signup-helper">(optional)</span>
         </label>
         <input id="contact_email" name="contact_email" type="email" className="cc-input" autoComplete="email" value={values.contact_email} onChange={(e) => setValues((v) => ({ ...v, contact_email: e.target.value }))} />
-        {errors.contact_email ? <p className="cc-error mt-1">{errors.contact_email}</p> : null}
+        {errors.contact_email ? <p className="cc-error">{errors.contact_email}</p> : null}
       </div>
       <div>
         <label className="cc-label" htmlFor="notes">
-          Notes <span className="text-cc-text/60">(optional)</span>
+          Notes <span className="signup-helper">(optional)</span>
         </label>
         <textarea id="notes" name="notes" rows={4} className="cc-input" value={values.notes} onChange={(e) => setValues((v) => ({ ...v, notes: e.target.value }))} />
-        {errors.notes ? <p className="cc-error mt-1">{errors.notes}</p> : null}
+        {errors.notes ? <p className="cc-error">{errors.notes}</p> : null}
       </div>
-      <div className="flex flex-wrap items-center gap-3 pt-2">
+      <div className="signup-actions">
         <button type="submit" className="cc-btn-primary" disabled={submitting}>
           {submitting ? "Submitting..." : "Submit registration"}
         </button>

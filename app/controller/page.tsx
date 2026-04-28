@@ -2,9 +2,12 @@ import Link from "next/link";
 
 export default function ControllerHomePage() {
   return (
-    <main>
-      <p>Source of truth for race operations: signup, marshal logging, leaderboard, and audit corrections.</p>
-      <div className="grid">
+    <main className="page-stack">
+      <section className="card">
+        <h1>Race Controller</h1>
+        <p>Source of truth for race operations: signup, marshal logging, leaderboard, and audit corrections.</p>
+      </section>
+      <section className="grid" aria-label="Controller destinations">
         <section className="card">
           <h2>Admin</h2>
           <p>Create races, register teams, and start race execution.</p>
@@ -26,7 +29,7 @@ export default function ControllerHomePage() {
             Open leaderboard
           </Link>
         </section>
-      </div>
+      </section>
     </main>
   );
 }
