@@ -76,6 +76,10 @@ export default function AdminPage() {
       ? "Ready"
       : "Admin console is not configured on this deployment (missing Supabase environment variables)."
   );
+  const currentPageUrl =
+    typeof globalThis.location === "undefined"
+      ? ""
+      : `${globalThis.location.origin}${globalThis.location.pathname}`;
 
   useEffect(() => {
     if (!supabase) return;
@@ -131,7 +135,7 @@ export default function AdminPage() {
       setStatus("Enter an email to sign in.");
       return;
     }
-    const redirectTo = `${globalThis.location.origin}${globalThis.location.pathname}`;
+    const redirectTo = currentPageUrl || "/";
     const { error } = await supabase.auth.signInWithOtp({
       email: signInEmail.trim().toLowerCase(),
       options: { emailRedirectTo: redirectTo }
@@ -535,7 +539,7 @@ export default function AdminPage() {
             <button type="submit">Send magic link</button>
             <p>
               If you keep returning to this form, ensure Supabase Auth URL settings allow
-              <code> {globalThis.location.origin}{globalThis.location.pathname}</code>.
+              <code> {currentPageUrl || "/"}</code>.
             </p>
           </form>
         )}
