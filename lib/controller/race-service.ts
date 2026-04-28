@@ -178,11 +178,32 @@ function asRelayEventRow(value: unknown): RelayEventRow {
   return value as RelayEventRow;
 }
 
+async function readEdgeFunctionErrorMessage(error: { message: string; context?: Response }): Promise<string> {
+  const ctx = error.context;
+  if (!ctx || typeof ctx.text !== "function") return error.message;
+  let body = "";
+  try {
+    body = await ctx.clone().text();
+  } catch {
+    return error.message;
+  }
+  if (!body) return error.message;
+  try {
+    const parsed = JSON.parse(body) as { error?: string };
+    return parsed.error ?? body;
+  } catch {
+    return body;
+  }
+}
+
 async function invokeAdminCorrections<T>(payload: object): Promise<T> {
   const { data, error } = await supabase.functions.invoke("admin-corrections", {
     body: payload,
   });
-  if (error) throw new Error(error.message);
+  if (error) {
+    const message = await readEdgeFunctionErrorMessage(error as { message: string; context?: Response });
+    throw new Error(message);
+  }
   if (!data || typeof data !== "object") {
     throw new Error("Invalid response from admin-corrections function.");
   }
@@ -634,13 +655,14 @@ export async function createCorrectionRequest(input: {
   idempotencyKey: string;
 }): Promise<CorrectionRequest> {
   const adminEmail = await requireAdminAccess();
+  const race = await resolveRace(input.raceId);
   const payload = createCorrectionRequestSchema.parse({
     ...input,
+    raceId: race.id,
     requestedBy: adminEmail,
   });
   return invokeAdminCorrections<CorrectionRequest>({
     ...payload,
-    requestedBy: adminEmail,
     action: "create",
   });
 }
