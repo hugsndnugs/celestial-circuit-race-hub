@@ -17,7 +17,12 @@ const orbitron = Orbitron({
 
 export const metadata: Metadata = {
   title: "Celestial Circuit Hub",
-  description: "Central navigation hub for Celestial Circuit tools."
+  description: "Central navigation hub for Celestial Circuit tools.",
+  icons: {
+    icon: "/favicon.svg",
+    shortcut: "/favicon.svg",
+    apple: "/favicon.svg"
+  }
 };
 
 export default function RootLayout({
