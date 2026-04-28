@@ -76,6 +76,23 @@ jobs:
             echo "Set them in GitHub repository or environment Variables, or provide matching Secrets."
             exit 1
           fi
+          node -e "
+            try {
+              const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+              const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
+              const hostRef = new URL(url).hostname.split('.')[0] ?? '';
+              const parts = key.split('.');
+              if (parts.length < 2) throw new Error('Anon key is not a JWT.');
+              const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+              const keyRef = typeof payload.ref === 'string' ? payload.ref : '';
+              if (!hostRef || !keyRef || hostRef !== keyRef) {
+                throw new Error('Supabase URL project ref does not match anon key ref.');
+              }
+            } catch (error) {
+              console.error(String(error instanceof Error ? error.message : error));
+              process.exit(1);
+            }
+          "
 
       - name: Build static export
         run: npm run build
