@@ -19,6 +19,7 @@ All frontend repositories use static export patterns.
   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
   - Configure each as either a GitHub Actions Variable (preferred) or Secret with the same name.
   - The workflow resolves values in this order: Variables first, then Secrets fallback.
+  - The URL host project ref and anon key `ref` claim must match (for example, `https://<ref>.supabase.co` and JWT payload `ref: "<ref>"`).
 
 ## Supabase Deployment
 
