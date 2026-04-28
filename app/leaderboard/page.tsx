@@ -7,15 +7,12 @@ import { getLeaderboard } from "@/lib/controller/race-service";
 import type { LeaderboardRow } from "@/lib/controller/types";
 
 export default function PublicLeaderboardPage() {
-  const [raceCode, setRaceCode] = useState("");
+  const [raceCode] = useState(() => {
+    if (typeof globalThis.location === "undefined") return "";
+    return new URLSearchParams(globalThis.location.search).get("raceCode")?.trim() ?? "";
+  });
   const [rows, setRows] = useState<LeaderboardRow[]>([]);
   const [message, setMessage] = useState("Provide race code to load leaderboard.");
-
-  useEffect(() => {
-    if (typeof globalThis.location === "undefined") return;
-    const code = new URLSearchParams(globalThis.location.search).get("raceCode")?.trim() ?? "";
-    setRaceCode(code);
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
