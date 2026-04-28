@@ -19,10 +19,16 @@ interface CorrectionRequestRow {
   idempotency_key: string;
 }
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { "Content-Type": "application/json" }
+    headers: { "Content-Type": "application/json", ...corsHeaders }
   });
 }
 
@@ -102,6 +108,10 @@ async function notifyDiscord(message: string): Promise<{ ok: boolean; error?: st
 }
 
 Deno.serve(async (request: Request) => {
+  if (request.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
   if (request.method !== "POST") {
     return json({ error: "Method not allowed" }, 405);
   }
