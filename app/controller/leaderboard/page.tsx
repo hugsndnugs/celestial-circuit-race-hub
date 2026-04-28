@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { formatDateTime } from "@/lib/controller/datetime";
 import { getLeaderboard } from "@/lib/controller/race-service";
+import { getSupabaseBrowser } from "@/lib/signups/supabaseBrowser";
 import { type LeaderboardRow } from "@/lib/controller/types";
 
 export default function LeaderboardPage() {
@@ -10,7 +11,7 @@ export default function LeaderboardPage() {
   const [rows, setRows] = useState<LeaderboardRow[]>([]);
   const [message, setMessage] = useState("Provide race code and refresh leaderboard.");
 
-  async function refresh() {
+  const refresh = useCallback(async () => {
     try {
       const leaderboard = await getLeaderboard(raceRef);
       setRows(leaderboard);
@@ -18,7 +19,21 @@ export default function LeaderboardPage() {
     } catch {
       setMessage("Failed to load leaderboard.");
     }
-  }
+  }, [raceRef]);
+
+  useEffect(() => {
+    const supabase = getSupabaseBrowser();
+    if (!supabase || !raceRef.trim()) return;
+    const channel = supabase
+      .channel(`leaderboard:${raceRef}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "relay_events" }, () => {
+        void refresh();
+      })
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [raceRef, refresh]);
 
   return (
     <main className="page-stack">

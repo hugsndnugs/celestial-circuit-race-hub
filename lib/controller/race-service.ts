@@ -53,6 +53,8 @@ function toRace(row: {
   status_note: string | null;
   weather_note: string | null;
   is_live_override: boolean | null;
+  next_status_eta: string | null;
+  next_status_eta_note: string | null;
 }): Race {
   return {
     id: row.id,
@@ -64,6 +66,8 @@ function toRace(row: {
     statusNote: row.status_note,
     weatherNote: row.weather_note,
     isLiveOverride: row.is_live_override,
+    nextStatusEta: row.next_status_eta,
+    nextStatusEtaNote: row.next_status_eta_note,
   };
 }
 function toTeam(row: {
@@ -250,7 +254,7 @@ async function resolveRace(reference: string): Promise<Race> {
     );
   const query = supabase
     .from("races")
-    .select("id, code, name, status, started_at, ended_at, status_note, weather_note, is_live_override")
+    .select("id, code, name, status, started_at, ended_at, status_note, weather_note, is_live_override, next_status_eta, next_status_eta_note")
     .limit(1);
   const response = isUuid ? await query.eq("id", raceRef).single() : await query.eq("code", raceRef).single();
   if (response.error || !response.data) throw new Error("Race not found.");
@@ -277,7 +281,7 @@ async function allocateRaceCode(): Promise<string> {
 export async function getRaces(): Promise<Race[]> {
   const { data, error } = await supabase
     .from("races")
-    .select("id, code, name, status, started_at, ended_at, status_note, weather_note, is_live_override")
+    .select("id, code, name, status, started_at, ended_at, status_note, weather_note, is_live_override, next_status_eta, next_status_eta_note")
     .order("id", { ascending: false });
   if (error) throw new Error(error.message);
   return (data ?? []).map(toRace);
@@ -287,21 +291,13 @@ export async function createRace(input: { name: string; relayPoints: string[] })
   await requireAdminAccess();
   const payload = createRaceSchema.parse(input);
   const code = await allocateRaceCode();
-  const { data, error } = await supabase
-    .from("races")
-    .insert([{ name: payload.name, status: "planned", code, started_at: null, ended_at: null }])
-    .select("id, code, name, status, started_at, ended_at, status_note, weather_note, is_live_override")
-    .single();
+  const { data, error } = await supabase.rpc("create_race_with_points", {
+    p_name: payload.name,
+    p_code: code,
+    p_relay_points: payload.relayPoints,
+  });
   if (error || !data) throw new Error(error?.message ?? "Failed to create race.");
-  const race = toRace(data);
-  const points = payload.relayPoints.map((name: string, index: number) => ({
-    race_id: race.id,
-    sequence_index: index + 1,
-    name,
-  }));
-  const pointsInsert = await supabase.from("relay_points").insert(points);
-  if (pointsInsert.error) throw new Error(pointsInsert.error.message);
-  return race;
+  return toRace(data);
 }
 
 export async function startRace(raceRef: string): Promise<Race> {
@@ -313,7 +309,7 @@ export async function startRace(raceRef: string): Promise<Race> {
     .from("races")
     .update({ status: "active", started_at: startedAt })
     .eq("id", race.id)
-    .select("id, code, name, status, started_at, ended_at, status_note, weather_note, is_live_override")
+    .select("id, code, name, status, started_at, ended_at, status_note, weather_note, is_live_override, next_status_eta, next_status_eta_note")
     .single();
   if (error || !data) throw new Error(error?.message ?? "Failed to start race.");
   return toRace(data);
@@ -328,7 +324,7 @@ export async function completeRace(raceRef: string): Promise<Race> {
     .from("races")
     .update({ status: "completed", ended_at: endedAt })
     .eq("id", race.id)
-    .select("id, code, name, status, started_at, ended_at, status_note, weather_note, is_live_override")
+    .select("id, code, name, status, started_at, ended_at, status_note, weather_note, is_live_override, next_status_eta, next_status_eta_note")
     .single();
   if (error || !data) throw new Error(error?.message ?? "Failed to complete race.");
   return toRace(data);
@@ -339,6 +335,8 @@ export async function updateRaceStatusDetails(input: {
   statusNote: string | null;
   weatherNote: string | null;
   isLiveOverride: boolean | null;
+  nextStatusEta: string | null;
+  nextStatusEtaNote: string | null;
 }): Promise<Race> {
   await requireAdminAccess();
   const payload = raceStatusDetailsSchema.parse(input);
@@ -351,9 +349,11 @@ export async function updateRaceStatusDetails(input: {
       status_note: statusNote,
       weather_note: weatherNote,
       is_live_override: payload.isLiveOverride,
+      next_status_eta: payload.nextStatusEta,
+      next_status_eta_note: payload.nextStatusEtaNote?.trim() || null,
     })
     .eq("id", race.id)
-    .select("id, code, name, status, started_at, ended_at, status_note, weather_note, is_live_override")
+    .select("id, code, name, status, started_at, ended_at, status_note, weather_note, is_live_override, next_status_eta, next_status_eta_note")
     .single();
   if (error || !data) throw new Error(error?.message ?? "Failed to update race status details.");
   return toRace(data);
@@ -532,32 +532,61 @@ export async function approveSignupToRace(input: {
   if (approvedBy !== adminEmail.toLowerCase()) throw new Error("Approver does not match signed-in admin.");
   const race = await resolveRace(input.raceId);
   if (race.status !== "planned") throw new Error("Teams cannot be added after race start.");
-  const signupResponse = await supabase
-    .from("team_signup_requests")
-    .select("id, team_name, captain_discord, teammates_discord, contact_email, notes, status, source, submitted_at")
-    .eq("id", signupId)
-    .single();
-  if (signupResponse.error || !signupResponse.data) throw new Error(signupResponse.error?.message ?? "Signup request not found.");
-  const signup = toSignupRequest(signupResponse.data);
-  if (signup.status !== "pending") throw new Error("Signup request is no longer pending.");
-  const members = signupMembersFromDiscord(signup);
-  const teamResponse = await supabase
-    .from("teams")
-    .insert([{ race_id: race.id, name: signup.teamName.trim(), members }])
-    .select("id, race_id, name, members, created_at")
-    .single();
-  if (teamResponse.error || !teamResponse.data) throw new Error(teamResponse.error?.message ?? "Failed to create team from signup.");
-  const statusResponse = await supabase
-    .from("team_signup_requests")
-    .update({ status: "approved", notes: signup.notes })
-    .eq("id", signup.id)
-    .eq("status", "pending")
-    .select("id")
-    .single();
-  if (statusResponse.error || !statusResponse.data) {
-    throw new Error(statusResponse.error?.message ?? "Failed to mark signup as approved.");
+  const teamResponse = await supabase.rpc("approve_signup_to_race_atomic", {
+    p_signup_id: signupId,
+    p_race_id: race.id,
+  });
+  if (teamResponse.error || !teamResponse.data) {
+    throw new Error(teamResponse.error?.message ?? "Failed to approve signup request.");
   }
-  return toTeam({ ...teamResponse.data, members: (teamResponse.data.members as string[]) ?? [] });
+  const teamRow = teamResponse.data as {
+    id: string;
+    race_id: string;
+    name: string;
+    members: unknown;
+    created_at: string;
+  };
+  return toTeam({ ...teamRow, members: (teamRow.members as string[]) ?? [] });
+}
+
+export async function markSignupAsSpam(input: {
+  signupId: string;
+  reason: string;
+  approvedBy: string;
+}): Promise<SignupRequest> {
+  const adminEmail = await requireAdminAccess();
+  const signupId = input.signupId.trim();
+  const approvedBy = input.approvedBy.trim().toLowerCase();
+  const reason = input.reason.trim();
+  if (!signupId) throw new Error("Signup ID is required.");
+  if (!approvedBy || approvedBy !== adminEmail.toLowerCase()) throw new Error("Approver does not match signed-in admin.");
+  if (!reason) throw new Error("Spam reason is required.");
+  const { data, error } = await supabase
+    .from("team_signup_requests")
+    .update({ status: "spam", notes: reason })
+    .eq("id", signupId)
+    .eq("status", "pending")
+    .select("id, team_name, captain_discord, teammates_discord, contact_email, notes, status, source, submitted_at")
+    .single();
+  if (error || !data) throw new Error(error?.message ?? "Failed to mark signup request as spam.");
+  return toSignupRequest(data);
+}
+
+export async function bulkModerateSignupRequests(input: {
+  signupIds: string[];
+  action: "reject" | "spam";
+  reason: string;
+  approvedBy: string;
+}): Promise<SignupRequest[]> {
+  const results: SignupRequest[] = [];
+  for (const signupId of input.signupIds) {
+    if (input.action === "spam") {
+      results.push(await markSignupAsSpam({ signupId, reason: input.reason, approvedBy: input.approvedBy }));
+    } else {
+      results.push(await rejectSignupRequest({ signupId, reason: input.reason, approvedBy: input.approvedBy }));
+    }
+  }
+  return results;
 }
 
 export async function rejectSignupRequest(input: {
@@ -687,4 +716,32 @@ export async function postDiscordRelayUpdate(payload: {
   } catch {
     // Discord notifications must not block race control.
   }
+}
+
+export async function getRaceEvidenceBundle(raceRef: string): Promise<{
+  race: Race;
+  teams: Team[];
+  relayPoints: RelayPoint[];
+  relayEvents: RelayEvent[];
+  correctionRequests: CorrectionRequest[];
+  incidentNotes: RaceIncidentNote[];
+  leaderboard: LeaderboardRow[];
+}> {
+  const race = await resolveRace(raceRef);
+  const [teams, relayPoints, relayEvents, correctionRequests, incidentNotes] = await Promise.all([
+    getTeamsByRace(race.id),
+    getRelayPointsByRace(race.id),
+    getRelayEventsByRace(race.id),
+    getCorrectionRequestsByRace(race.id),
+    getIncidentNotesByRace(race.id),
+  ]);
+  return {
+    race,
+    teams,
+    relayPoints,
+    relayEvents,
+    correctionRequests,
+    incidentNotes,
+    leaderboard: computeLeaderboard({ race, teams, relayPoints, relayEvents }),
+  };
 }

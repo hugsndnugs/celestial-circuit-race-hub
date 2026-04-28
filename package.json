@@ -8,6 +8,8 @@
     "build:static": "next build",
     "start": "next start",
     "lint": "eslint app next.config.ts eslint.config.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test \"tests/**/*.test.ts\"",
     "status:probe": "node scripts/probe-services.mjs"
   },
   "dependencies": {
@@ -23,6 +25,7 @@
     "@types/react-dom": "^19.2.3",
     "eslint": "^9.39.4",
     "eslint-config-next": "^16.2.4",
+    "tsx": "^4.21.0",
     "typescript": "^6.0.3"
   }
 }

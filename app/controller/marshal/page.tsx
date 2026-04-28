@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { formatDateTime } from "@/lib/controller/datetime";
 import { getRaces, getRelayPointsByRace, getTeamsByRace, markRelayPass, postDiscordRelayUpdate } from "@/lib/controller/race-service";
 import { type RelayPoint, type Team } from "@/lib/controller/types";
@@ -11,6 +11,25 @@ export default function MarshalPage() {
   const [relayPoints, setRelayPoints] = useState<RelayPoint[]>([]);
   const [selectedRelayPointId, setSelectedRelayPointId] = useState("");
   const [message, setMessage] = useState("Enter race code to load marshal controls.");
+  const [offlineQueue, setOfflineQueue] = useState<Array<{ teamId: string; relayPointId: string; enqueuedAt: string }>>(() => {
+    if (typeof globalThis === "undefined" || typeof globalThis.localStorage === "undefined") return [];
+    const raw = globalThis.localStorage.getItem("marshal-offline-queue");
+    if (!raw) return [];
+    try {
+      return JSON.parse(raw) as Array<{ teamId: string; relayPointId: string; enqueuedAt: string }>;
+    } catch {
+      return [];
+    }
+  });
+
+  const offlineCount = useMemo(() => offlineQueue.length, [offlineQueue]);
+
+  function persistQueue(nextQueue: Array<{ teamId: string; relayPointId: string; enqueuedAt: string }>) {
+    setOfflineQueue(nextQueue);
+    if (typeof globalThis.localStorage !== "undefined") {
+      globalThis.localStorage.setItem("marshal-offline-queue", JSON.stringify(nextQueue));
+    }
+  }
 
   async function loadRaceContext() {
     if (!raceRef) return;
@@ -43,8 +62,38 @@ export default function MarshalPage() {
       await postDiscordRelayUpdate({ raceCode: raceRef, teamId, relayPointId: selectedRelayPointId, recordedAt: relayEvent.recordedAt });
       setMessage(`Pass logged at ${formatDateTime(relayEvent.recordedAt)}`);
     } catch {
-      setMessage("Log failed.");
+      const nextQueue = [...offlineQueue, { teamId, relayPointId: selectedRelayPointId, enqueuedAt: new Date().toISOString() }];
+      persistQueue(nextQueue);
+      setMessage("Offline queue enabled: pass saved locally and will retry when you press Sync queue.");
     }
+  }
+
+  async function syncOfflineQueue() {
+    if (offlineQueue.length === 0) {
+      setMessage("No queued pass events to sync.");
+      return;
+    }
+    const remaining: Array<{ teamId: string; relayPointId: string; enqueuedAt: string }> = [];
+    for (const queued of offlineQueue) {
+      try {
+        const relayEvent = await markRelayPass({
+          raceId: raceRef,
+          teamId: queued.teamId,
+          relayPointId: queued.relayPointId,
+          recordedBy: "marshal:field-device-1",
+        });
+        await postDiscordRelayUpdate({
+          raceCode: raceRef,
+          teamId: queued.teamId,
+          relayPointId: queued.relayPointId,
+          recordedAt: relayEvent.recordedAt,
+        });
+      } catch {
+        remaining.push(queued);
+      }
+    }
+    persistQueue(remaining);
+    setMessage(remaining.length === 0 ? "Offline queue synced." : `${remaining.length} queued passes still pending.`);
   }
 
   return (
@@ -76,6 +125,10 @@ export default function MarshalPage() {
       </section>
       <section className="card">
         <p>{message}</p>
+        <p>Offline queue: {offlineCount}</p>
+        <button type="button" className="secondary" onClick={() => void syncOfflineQueue()} disabled={!raceRef || offlineCount === 0}>
+          Sync queue
+        </button>
       </section>
     </main>
   );

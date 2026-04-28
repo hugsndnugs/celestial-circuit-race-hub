@@ -56,4 +56,6 @@ export const raceStatusDetailsSchema = z.object({
   statusNote: z.string().trim().max(500).nullable(),
   weatherNote: z.string().trim().max(200).nullable(),
   isLiveOverride: z.boolean().nullable(),
+  nextStatusEta: z.iso.datetime().nullable(),
+  nextStatusEtaNote: z.string().trim().max(160).nullable(),
 });

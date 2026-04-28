@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { getRaces } from "@/lib/controller/race-service";
 import { Race } from "@/lib/controller/types";
+import { getSupabaseBrowser } from "@/lib/signups/supabaseBrowser";
 
 const formatTimestamp = (value: string | null) => {
   if (!value) return "unknown";
@@ -27,6 +29,10 @@ function RaceList({ races, emptyLabel }: Readonly<{ races: Race[]; emptyLabel: s
           {race.endedAt ? ` - ended ${formatTimestamp(race.endedAt)}` : ""}
           {race.statusNote ? ` - update: ${race.statusNote}` : ""}
           {race.weatherNote ? ` - weather: ${race.weatherNote}` : ""}
+          {race.nextStatusEta ? ` - next update ETA: ${formatTimestamp(race.nextStatusEta)}` : ""}
+          {race.nextStatusEtaNote ? ` (${race.nextStatusEtaNote})` : ""}
+          <br />
+          <Link href={`/leaderboard/${race.code}`}>View leaderboard</Link>
         </li>
       ))}
     </ul>
@@ -58,6 +64,23 @@ export default function StatusPage() {
     void loadStatus();
     return () => {
       cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const supabase = getSupabaseBrowser();
+    if (!supabase) return;
+    const channel = supabase
+      .channel("status:races")
+      .on("postgres_changes", { event: "*", schema: "public", table: "races" }, () => {
+        void getRaces().then((nextRaces) => {
+          setRaces(nextRaces);
+          setLastUpdated(new Date().toISOString());
+        });
+      })
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
     };
   }, []);
 

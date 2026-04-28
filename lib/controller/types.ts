@@ -14,6 +14,8 @@ export interface Race {
   statusNote: string | null;
   weatherNote: string | null;
   isLiveOverride: boolean | null;
+  nextStatusEta: string | null;
+  nextStatusEtaNote: string | null;
 }
 
 export interface Team {

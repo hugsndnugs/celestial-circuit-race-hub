@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   approveSignupToRace,
+  bulkModerateSignupRequests,
   applyCorrectionRequest,
   completeRace as completeRaceRecord,
   createIncidentNote as createIncidentNoteRecord,
@@ -12,9 +13,11 @@ import {
   getIncidentNotesByRace,
   getCorrectionRequestsByRace,
   getPendingSignupRequests,
+  getRaceEvidenceBundle,
   getRaces,
   getRelayEventsByRace,
   getRelayPointsByRace,
+  markSignupAsSpam,
   rejectSignupRequest,
   rejectCorrectionRequest,
   getTeamsByRace,
@@ -25,6 +28,8 @@ import { AdminIdentity, getCurrentAdminIdentity, isAllowedAdmin, updateCurrentAd
 import { getSignedInLabel } from "@/lib/controller/admin-display";
 import { formatDateTime } from "@/lib/controller/datetime";
 import { getSupabaseBrowser } from "@/lib/signups/supabaseBrowser";
+import { correctionsToCsv, incidentsToCsv, leaderboardToCsv, relayEventsToCsv } from "@/lib/controller/evidence-export";
+import { downloadTextFile } from "@/lib/controller/download";
 import { CorrectionRequest, Race, RaceIncidentNote, RelayEvent, RelayPoint, SignupRequest, Team } from "@/lib/controller/types";
 
 function getMetadataName(metadata: Record<string, unknown> | undefined): string | null {
@@ -57,6 +62,8 @@ export default function AdminPage() {
   const [statusNoteInput, setStatusNoteInput] = useState("");
   const [weatherNoteInput, setWeatherNoteInput] = useState("");
   const [liveOverrideInput, setLiveOverrideInput] = useState<"auto" | "live" | "not_live">("auto");
+  const [nextStatusEtaInput, setNextStatusEtaInput] = useState("");
+  const [nextStatusEtaNoteInput, setNextStatusEtaNoteInput] = useState("");
   const [queueStatusFilter, setQueueStatusFilter] = useState<"all" | CorrectionRequest["status"]>("all");
   const [search, setSearch] = useState("");
   const [sortOrder, setSortOrder] = useState<"newest" | "name">("newest");
@@ -71,6 +78,7 @@ export default function AdminPage() {
   const [pendingSignups, setPendingSignups] = useState<SignupRequest[]>([]);
   const [signupRaceSelections, setSignupRaceSelections] = useState<Record<string, string>>({});
   const [signupActionLoadingId, setSignupActionLoadingId] = useState<string | null>(null);
+  const [selectedSignupIds, setSelectedSignupIds] = useState<string[]>([]);
   const [status, setStatus] = useState(
     supabase
       ? "Ready"
@@ -231,6 +239,8 @@ export default function AdminPage() {
     if (race?.isLiveOverride === true) setLiveOverrideInput("live");
     else if (race?.isLiveOverride === false) setLiveOverrideInput("not_live");
     else setLiveOverrideInput("auto");
+    setNextStatusEtaInput(race?.nextStatusEta ?? "");
+    setNextStatusEtaNoteInput(race?.nextStatusEtaNote ?? "");
   }
 
   const visibleRaces = useMemo(() => {
@@ -271,6 +281,28 @@ export default function AdminPage() {
     }, 10000);
     return () => globalThis.clearInterval(handle);
   }, [autoRefreshLiveOps, raceRef, selectedRace?.status]);
+
+  useEffect(() => {
+    if (!supabase || !selectedRace?.id) return;
+    const channel = supabase
+      .channel(`admin-live:${selectedRace.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "relay_events", filter: `race_id=eq.${selectedRace.id}` }, () => {
+        void refreshRaceContext(selectedRace.code);
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "correction_requests", filter: `race_id=eq.${selectedRace.id}` }, () => {
+        void refreshRaceContext(selectedRace.code);
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "race_incident_notes", filter: `race_id=eq.${selectedRace.id}` }, () => {
+        void refreshRaceContext(selectedRace.code);
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "team_signup_requests" }, () => {
+        void refreshRaces();
+      })
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [selectedRace?.id, selectedRace?.code, supabase]);
 
   async function handleCreateRace(event: { preventDefault: () => void }) {
     event.preventDefault();
@@ -346,12 +378,16 @@ export default function AdminPage() {
         statusNote: statusNoteInput.trim() || null,
         weatherNote: weatherNoteInput.trim() || null,
         isLiveOverride: liveOverrideInput === "auto" ? null : liveOverrideInput === "live",
+        nextStatusEta: nextStatusEtaInput.trim() ? new Date(nextStatusEtaInput).toISOString() : null,
+        nextStatusEtaNote: nextStatusEtaNoteInput.trim() || null,
       });
       setStatusNoteInput(updated.statusNote ?? "");
       setWeatherNoteInput(updated.weatherNote ?? "");
       if (updated.isLiveOverride === true) setLiveOverrideInput("live");
       else if (updated.isLiveOverride === false) setLiveOverrideInput("not_live");
       else setLiveOverrideInput("auto");
+      setNextStatusEtaInput(updated.nextStatusEta ?? "");
+      setNextStatusEtaNoteInput(updated.nextStatusEtaNote ?? "");
       await refreshRaces();
       setStatus(`Public status updated for ${updated.code}.`);
     } catch (error) {
@@ -423,6 +459,15 @@ export default function AdminPage() {
     setSignupRaceSelections((previous) => ({ ...previous, [signupId]: value }));
   }
 
+  function toggleSignupSelection(signupId: string, checked: boolean) {
+    setSelectedSignupIds((previous) => {
+      if (checked) {
+        return previous.includes(signupId) ? previous : [...previous, signupId];
+      }
+      return previous.filter((id) => id !== signupId);
+    });
+  }
+
   async function approveSignup(signup: SignupRequest) {
     const selectedSignupRace = signupRaceSelections[signup.id]?.trim() || raceRef.trim();
     if (!selectedSignupRace) {
@@ -475,6 +520,82 @@ export default function AdminPage() {
       setStatus(error instanceof Error ? error.message : "Signup rejection failed.");
     } finally {
       setSignupActionLoadingId(null);
+    }
+  }
+
+  async function markSignupSpam(signup: SignupRequest) {
+    const reason = globalThis.prompt("Reason for spam", "Spam or abuse.");
+    if (reason === null || !reason.trim()) return;
+    try {
+      if (!authIdentity?.email) throw new Error("Sign in required.");
+      setSignupActionLoadingId(signup.id);
+      await markSignupAsSpam({
+        signupId: signup.id,
+        reason,
+        approvedBy: authIdentity.email,
+      });
+      await refreshRaces();
+      setStatus(`Signup marked as spam: ${signup.teamName}`);
+    } catch (error) {
+      console.error("Failed to mark signup as spam", error);
+      setStatus(error instanceof Error ? error.message : "Spam action failed.");
+    } finally {
+      setSignupActionLoadingId(null);
+    }
+  }
+
+  async function runBulkSignupModeration(action: "reject" | "spam") {
+    if (selectedSignupIds.length === 0) {
+      setStatus("Select at least one signup for bulk moderation.");
+      return;
+    }
+    const reason = globalThis.prompt(`Reason for bulk ${action}`, action === "spam" ? "Spam or abuse." : "Invalid or duplicate signup.");
+    if (reason === null || !reason.trim()) return;
+    try {
+      if (!authIdentity?.email) throw new Error("Sign in required.");
+      await bulkModerateSignupRequests({
+        signupIds: selectedSignupIds,
+        action,
+        reason,
+        approvedBy: authIdentity.email,
+      });
+      setSelectedSignupIds([]);
+      await refreshRaces();
+      setStatus(`Bulk ${action} complete for ${selectedSignupIds.length} signup(s).`);
+    } catch (error) {
+      console.error("Bulk signup moderation failed", error);
+      setStatus(error instanceof Error ? error.message : "Bulk moderation failed.");
+    }
+  }
+
+  async function exportEvidence(format: "json" | "csv") {
+    if (!raceRef.trim()) {
+      setStatus("Select a race before exporting evidence.");
+      return;
+    }
+    try {
+      const bundle = await getRaceEvidenceBundle(raceRef);
+      if (format === "json") {
+        downloadTextFile(
+          `${bundle.race.code}-evidence.json`,
+          JSON.stringify(bundle, null, 2)
+        );
+      } else {
+        const csvSections = [
+          ["relay_events.csv", relayEventsToCsv(bundle.relayEvents)],
+          ["corrections.csv", correctionsToCsv(bundle.correctionRequests)],
+          ["incidents.csv", incidentsToCsv(bundle.incidentNotes)],
+          ["leaderboard.csv", leaderboardToCsv(bundle.leaderboard)],
+        ] as const;
+        downloadTextFile(
+          `${bundle.race.code}-evidence.txt`,
+          csvSections.map(([name, content]) => `## ${name}\n${content}`).join("\n")
+        );
+      }
+      setStatus(`Evidence export generated for ${bundle.race.code}.`);
+    } catch (error) {
+      console.error("Failed to export evidence", error);
+      setStatus("Evidence export failed.");
     }
   }
 
@@ -582,6 +703,14 @@ export default function AdminPage() {
       <section className="card admin-card">
         <h2>Pending Signup Queue</h2>
         <p>Review incoming signups and assign them to a planned race.</p>
+        <div className="admin-actions">
+          <button type="button" className="secondary" onClick={() => void runBulkSignupModeration("reject")} disabled={selectedSignupIds.length === 0}>
+            Bulk reject selected
+          </button>
+          <button type="button" className="secondary" onClick={() => void runBulkSignupModeration("spam")} disabled={selectedSignupIds.length === 0}>
+            Bulk mark spam
+          </button>
+        </div>
         {pendingSignups.length === 0 ? (
           <p>No pending signup requests.</p>
         ) : (
@@ -591,6 +720,15 @@ export default function AdminPage() {
               const isBusy = signupActionLoadingId === signup.id;
               return (
                 <li key={signup.id} className="admin-list-item">
+                  <label htmlFor={`signup-select-${signup.id}`} className="admin-meta">
+                    <input
+                      id={`signup-select-${signup.id}`}
+                      type="checkbox"
+                      checked={selectedSignupIds.includes(signup.id)}
+                      onChange={(eventItem) => toggleSignupSelection(signup.id, eventItem.target.checked)}
+                    />
+                    Select for bulk action
+                  </label>
                   <p className="admin-meta">
                     <strong>{signup.teamName}</strong> - captain: {signup.captainDiscord}
                     {signup.contactEmail ? ` - ${signup.contactEmail}` : ""}
@@ -633,6 +771,14 @@ export default function AdminPage() {
                     >
                       Reject
                     </button>
+                    <button
+                      type="button"
+                      className="secondary"
+                      onClick={() => void markSignupSpam(signup)}
+                      disabled={isBusy}
+                    >
+                      Mark spam
+                    </button>
                   </div>
                 </li>
               );
@@ -650,6 +796,8 @@ export default function AdminPage() {
             {selectedRace.endedAt ? ` - ended: ${formatDateTime(selectedRace.endedAt)}` : ""}
             {selectedRace.statusNote ? ` - public note: ${selectedRace.statusNote}` : ""}
             {selectedRace.weatherNote ? ` - weather: ${selectedRace.weatherNote}` : ""}
+            {selectedRace.nextStatusEta ? ` - next ETA: ${formatDateTime(selectedRace.nextStatusEta)}` : ""}
+            {selectedRace.nextStatusEtaNote ? ` (${selectedRace.nextStatusEtaNote})` : ""}
           </p>
         ) : (
           <p>Select a race from Race Finder or create a new one.</p>
@@ -657,6 +805,14 @@ export default function AdminPage() {
         <button type="button" className="secondary" disabled={!raceRef} onClick={() => void refreshRaceContext(raceRef)}>
           Reload selected race context
         </button>
+        <div className="admin-actions">
+          <button type="button" className="secondary" disabled={!raceRef} onClick={() => void exportEvidence("json")}>
+            Export evidence JSON
+          </button>
+          <button type="button" className="secondary" disabled={!raceRef} onClick={() => void exportEvidence("csv")}>
+            Export evidence CSV bundle
+          </button>
+        </div>
       </section>
 
       <section className="card admin-card">
@@ -724,6 +880,20 @@ export default function AdminPage() {
             <option value="live">Force live</option>
             <option value="not_live">Force not live</option>
           </select>
+          <label htmlFor="nextStatusEtaInput">Next status update ETA (ISO)</label>
+          <input
+            id="nextStatusEtaInput"
+            value={nextStatusEtaInput}
+            onChange={(eventItem) => setNextStatusEtaInput(eventItem.target.value)}
+            placeholder="2026-04-28T20:30:00.000Z"
+          />
+          <label htmlFor="nextStatusEtaNoteInput">ETA context</label>
+          <input
+            id="nextStatusEtaNoteInput"
+            value={nextStatusEtaNoteInput}
+            onChange={(eventItem) => setNextStatusEtaNoteInput(eventItem.target.value)}
+            placeholder="Next marshal update and pitlane readiness."
+          />
           <button type="submit" disabled={!selectedRace}>
             Save public status
           </button>
