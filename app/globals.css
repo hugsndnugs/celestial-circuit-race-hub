@@ -108,6 +108,50 @@ main {
   padding: 1.3rem;
 }
 
+.admin-main {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-card {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.admin-form {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.admin-inline-control {
+  min-width: 220px;
+  margin: 0;
+}
+
+.admin-list {
+  margin: 0;
+  padding-left: 1.15rem;
+  display: grid;
+  gap: 0.85rem;
+}
+
+.admin-list-item {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.admin-meta {
+  margin: 0;
+  color: rgba(232, 237, 242, 0.86);
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -320,5 +364,10 @@ a.button-link[aria-disabled="true"] {
 
   main {
     padding: 1.2rem 1rem 1.4rem;
+  }
+
+  .admin-inline-control {
+    width: 100%;
+    min-width: 0;
   }
 }
