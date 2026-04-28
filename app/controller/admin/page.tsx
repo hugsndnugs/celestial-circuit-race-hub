@@ -57,12 +57,16 @@ export default function AdminPage() {
   const [membersText, setMembersText] = useState("");
   const [supersededEventId, setSupersededEventId] = useState<string>("");
   const [correctionReason, setCorrectionReason] = useState("");
-  const [effectiveRecordedAt, setEffectiveRecordedAt] = useState("");
+  const [correctionOffsetPresetSeconds, setCorrectionOffsetPresetSeconds] = useState(0);
+  const [correctionOffsetCustomSeconds, setCorrectionOffsetCustomSeconds] = useState("");
   const [incidentNoteText, setIncidentNoteText] = useState("");
   const [statusNoteInput, setStatusNoteInput] = useState("");
   const [weatherNoteInput, setWeatherNoteInput] = useState("");
   const [liveOverrideInput, setLiveOverrideInput] = useState<"auto" | "live" | "not_live">("auto");
   const [nextStatusEtaInput, setNextStatusEtaInput] = useState("");
+  const [nextStatusEtaOffsetPresetMinutes, setNextStatusEtaOffsetPresetMinutes] = useState<number | null>(null);
+  const [nextStatusEtaOffsetCustomMinutes, setNextStatusEtaOffsetCustomMinutes] = useState("");
+  const [nextStatusEtaOffsetBaseMs, setNextStatusEtaOffsetBaseMs] = useState<number | null>(null);
   const [nextStatusEtaNoteInput, setNextStatusEtaNoteInput] = useState("");
   const [queueStatusFilter, setQueueStatusFilter] = useState<"all" | CorrectionRequest["status"]>("all");
   const [search, setSearch] = useState("");
@@ -273,6 +277,35 @@ export default function AdminPage() {
     () => correctionRequests.filter((requestItem) => requestItem.status === "pending").length,
     [correctionRequests]
   );
+  const correctionOffsetCustomParsed = Number.parseInt(correctionOffsetCustomSeconds.trim(), 10);
+  const correctionOffsetSeconds = Number.isFinite(correctionOffsetCustomParsed)
+    ? correctionOffsetCustomParsed
+    : correctionOffsetPresetSeconds;
+  const correctionEffectiveAtIso = useMemo(() => {
+    if (!correctionTarget) return null;
+    const base = Date.parse(correctionTarget.recordedAt);
+    if (!Number.isFinite(base)) return null;
+    return new Date(base + correctionOffsetSeconds * 1000).toISOString();
+  }, [correctionOffsetSeconds, correctionTarget]);
+  let correctionOffsetLabel = "0s (no shift)";
+  if (correctionOffsetSeconds !== 0) {
+    const correctionOffsetSign = correctionOffsetSeconds > 0 ? "+" : "";
+    correctionOffsetLabel = `${correctionOffsetSign}${correctionOffsetSeconds}s`;
+  }
+  const nextStatusEtaCustomParsed = Number.parseInt(nextStatusEtaOffsetCustomMinutes.trim(), 10);
+  const nextStatusEtaOffsetMinutes = Number.isFinite(nextStatusEtaCustomParsed)
+    ? nextStatusEtaCustomParsed
+    : nextStatusEtaOffsetPresetMinutes;
+  const nextStatusEtaDerivedIso = useMemo(() => {
+    if (nextStatusEtaOffsetMinutes === null || nextStatusEtaOffsetBaseMs === null) return null;
+    return new Date(nextStatusEtaOffsetBaseMs + nextStatusEtaOffsetMinutes * 60_000).toISOString();
+  }, [nextStatusEtaOffsetBaseMs, nextStatusEtaOffsetMinutes]);
+  let nextStatusEtaPreviewText = "No ETA set.";
+  if (nextStatusEtaDerivedIso) {
+    nextStatusEtaPreviewText = `Next ETA preview: ${formatDateTime(nextStatusEtaDerivedIso)}`;
+  } else if (nextStatusEtaInput) {
+    nextStatusEtaPreviewText = `Current ETA: ${formatDateTime(nextStatusEtaInput)}`;
+  }
 
   useEffect(() => {
     if (!autoRefreshLiveOps || !raceRef || selectedRace?.status !== "active") return;
@@ -373,12 +406,18 @@ export default function AdminPage() {
       return;
     }
     try {
+      let nextStatusEta: string | null = null;
+      if (nextStatusEtaDerivedIso) {
+        nextStatusEta = new Date(nextStatusEtaDerivedIso).toISOString();
+      } else if (nextStatusEtaInput.trim()) {
+        nextStatusEta = new Date(nextStatusEtaInput).toISOString();
+      }
       const updated = await updateRaceStatusDetails({
         raceId: selectedRace.id,
         statusNote: statusNoteInput.trim() || null,
         weatherNote: weatherNoteInput.trim() || null,
         isLiveOverride: liveOverrideInput === "auto" ? null : liveOverrideInput === "live",
-        nextStatusEta: nextStatusEtaInput.trim() ? new Date(nextStatusEtaInput).toISOString() : null,
+        nextStatusEta,
         nextStatusEtaNote: nextStatusEtaNoteInput.trim() || null,
       });
       setStatusNoteInput(updated.statusNote ?? "");
@@ -387,6 +426,9 @@ export default function AdminPage() {
       else if (updated.isLiveOverride === false) setLiveOverrideInput("not_live");
       else setLiveOverrideInput("auto");
       setNextStatusEtaInput(updated.nextStatusEta ?? "");
+      setNextStatusEtaOffsetPresetMinutes(null);
+      setNextStatusEtaOffsetCustomMinutes("");
+      setNextStatusEtaOffsetBaseMs(null);
       setNextStatusEtaNoteInput(updated.nextStatusEtaNote ?? "");
       await refreshRaces();
       setStatus(`Public status updated for ${updated.code}.`);
@@ -401,7 +443,7 @@ export default function AdminPage() {
     const confirmed = globalThis.confirm("Submit correction request to triage queue?");
     if (!confirmed) return;
     if (!correctionTarget) return;
-    const effectiveAt = effectiveRecordedAt || correctionTarget.recordedAt;
+    const effectiveAt = correctionEffectiveAtIso ?? correctionTarget.recordedAt;
     try {
       if (!authIdentity?.email) throw new Error("Sign in required.");
       const request = await createCorrectionRequest({
@@ -413,7 +455,8 @@ export default function AdminPage() {
       });
       setSupersededEventId("");
       setCorrectionReason("");
-      setEffectiveRecordedAt("");
+      setCorrectionOffsetPresetSeconds(0);
+      setCorrectionOffsetCustomSeconds("");
       await refreshRaceContext(raceRef);
       setStatus(`Correction queued: ${request.id}`);
     } catch (error) {
@@ -424,7 +467,17 @@ export default function AdminPage() {
 
   function selectCorrectionTarget(eventId: string) {
     setSupersededEventId(eventId);
+    setCorrectionOffsetPresetSeconds(0);
+    setCorrectionOffsetCustomSeconds("");
     setStatus("Correction target selected.");
+  }
+
+  function clearNextStatusEta() {
+    setNextStatusEtaInput("");
+    setNextStatusEtaOffsetPresetMinutes(null);
+    setNextStatusEtaOffsetCustomMinutes("");
+    setNextStatusEtaOffsetBaseMs(null);
+    setStatus("Next status ETA cleared. Save public status to apply.");
   }
 
   function formatEventSource(source: RelayEvent["source"]): string {
@@ -880,13 +933,42 @@ export default function AdminPage() {
             <option value="live">Force live</option>
             <option value="not_live">Force not live</option>
           </select>
-          <label htmlFor="nextStatusEtaInput">Next status update ETA (ISO)</label>
+          <p>Next status update ETA offset (from now)</p>
+          <div className="admin-actions">
+            {[
+              { label: "+5m", minutes: 5 },
+              { label: "+10m", minutes: 10 },
+              { label: "+15m", minutes: 15 },
+              { label: "+30m", minutes: 30 },
+            ].map((preset) => (
+              <button
+                key={preset.label}
+                type="button"
+                className={nextStatusEtaOffsetPresetMinutes === preset.minutes ? "secondary selected" : "secondary"}
+                onClick={() => {
+                  setNextStatusEtaOffsetPresetMinutes(preset.minutes);
+                  setNextStatusEtaOffsetCustomMinutes("");
+                  setNextStatusEtaOffsetBaseMs(Date.now());
+                }}
+              >
+                {preset.label}
+              </button>
+            ))}
+            <button type="button" className="secondary" onClick={clearNextStatusEta}>
+              Clear ETA
+            </button>
+          </div>
+          <label htmlFor="nextStatusEtaOffsetCustom">Custom ETA offset (minutes, signed)</label>
           <input
-            id="nextStatusEtaInput"
-            value={nextStatusEtaInput}
-            onChange={(eventItem) => setNextStatusEtaInput(eventItem.target.value)}
-            placeholder="2026-04-28T20:30:00.000Z"
+            id="nextStatusEtaOffsetCustom"
+            value={nextStatusEtaOffsetCustomMinutes}
+            onChange={(eventItem) => {
+              setNextStatusEtaOffsetCustomMinutes(eventItem.target.value);
+              setNextStatusEtaOffsetBaseMs(Date.now());
+            }}
+            placeholder="-5 or +20"
           />
+          <p>{nextStatusEtaPreviewText}</p>
           <label htmlFor="nextStatusEtaNoteInput">ETA context</label>
           <input
             id="nextStatusEtaNoteInput"
@@ -939,17 +1021,38 @@ export default function AdminPage() {
           />
           <label htmlFor="reason">Correction reason</label>
           <input id="reason" value={correctionReason} onChange={(e) => setCorrectionReason(e.target.value)} />
-          <label htmlFor="effectiveAt">Effective pass time (ISO)</label>
+          <p>Effective pass time offset (from captured pass time)</p>
+          <div className="admin-actions">
+            {[
+              { label: "-60s", seconds: -60 },
+              { label: "-30s", seconds: -30 },
+              { label: "+30s", seconds: 30 },
+              { label: "+60s", seconds: 60 },
+            ].map((preset) => (
+              <button
+                key={preset.label}
+                type="button"
+                className={correctionOffsetPresetSeconds === preset.seconds ? "secondary selected" : "secondary"}
+                onClick={() => {
+                  setCorrectionOffsetPresetSeconds(preset.seconds);
+                  setCorrectionOffsetCustomSeconds("");
+                }}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+          <label htmlFor="effectiveAtOffsetCustom">Custom effective offset (seconds, signed)</label>
           <input
-            id="effectiveAt"
-            value={effectiveRecordedAt}
-            onChange={(e) => setEffectiveRecordedAt(e.target.value)}
-            placeholder={correctionTarget?.recordedAt ?? "2026-04-26T13:00:00.000Z"}
+            id="effectiveAtOffsetCustom"
+            value={correctionOffsetCustomSeconds}
+            onChange={(e) => setCorrectionOffsetCustomSeconds(e.target.value)}
+            placeholder="-15 or +45"
           />
           {correctionTarget ? (
             <p>
               Target preview: {eventTeamMap.get(correctionTarget.teamId) ?? correctionTarget.teamId} at
-              {` ${eventRelayPointMap.get(correctionTarget.relayPointId) ?? correctionTarget.relayPointId} captured ${formatDateTime(correctionTarget.recordedAt)} and currently used as ${formatDateTime(correctionTarget.effectiveRecordedAt)}`}
+              {` ${eventRelayPointMap.get(correctionTarget.relayPointId) ?? correctionTarget.relayPointId} captured ${formatDateTime(correctionTarget.recordedAt)} and currently used as ${formatDateTime(correctionTarget.effectiveRecordedAt)}. New effective preview: ${correctionEffectiveAtIso ? formatDateTime(correctionEffectiveAtIso) : "Invalid base time"} (${correctionOffsetLabel}).`}
             </p>
           ) : (
             <p>Paste an event ID to preview target details before submitting.</p>
