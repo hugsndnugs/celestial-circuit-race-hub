@@ -32,7 +32,7 @@ function RaceList({ races, emptyLabel }: Readonly<{ races: Race[]; emptyLabel: s
           {race.nextStatusEta ? ` - next update ETA: ${formatTimestamp(race.nextStatusEta)}` : ""}
           {race.nextStatusEtaNote ? ` (${race.nextStatusEtaNote})` : ""}
           <br />
-          <Link href={`/leaderboard/${race.code}`}>View leaderboard</Link>
+          <Link href={`/leaderboard?raceCode=${encodeURIComponent(race.code)}`}>View leaderboard</Link>
         </li>
       ))}
     </ul>
