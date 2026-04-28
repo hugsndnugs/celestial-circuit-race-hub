@@ -18,7 +18,8 @@ import {
   rejectSignupRequest,
   rejectCorrectionRequest,
   getTeamsByRace,
-  startRace as startRaceRecord
+  startRace as startRaceRecord,
+  updateRaceStatusDetails
 } from "@/lib/controller/race-service";
 import { AdminIdentity, getCurrentAdminIdentity, isAllowedAdmin, updateCurrentAdminDisplayName } from "@/lib/controller/admin-auth";
 import { getSignedInLabel } from "@/lib/controller/admin-display";
@@ -39,7 +40,7 @@ function getMetadataName(metadata: Record<string, unknown> | undefined): string 
 export default function AdminPage() {
   const supabase = getSupabaseBrowser();
   const [authIdentity, setAuthIdentity] = useState<AdminIdentity | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
+  const [authLoading, setAuthLoading] = useState(Boolean(supabase));
   const [signInEmail, setSignInEmail] = useState("");
   const [profileDisplayName, setProfileDisplayName] = useState("");
   const [profileSaving, setProfileSaving] = useState(false);
@@ -53,6 +54,9 @@ export default function AdminPage() {
   const [correctionReason, setCorrectionReason] = useState("");
   const [effectiveRecordedAt, setEffectiveRecordedAt] = useState("");
   const [incidentNoteText, setIncidentNoteText] = useState("");
+  const [statusNoteInput, setStatusNoteInput] = useState("");
+  const [weatherNoteInput, setWeatherNoteInput] = useState("");
+  const [liveOverrideInput, setLiveOverrideInput] = useState<"auto" | "live" | "not_live">("auto");
   const [queueStatusFilter, setQueueStatusFilter] = useState<"all" | CorrectionRequest["status"]>("all");
   const [search, setSearch] = useState("");
   const [sortOrder, setSortOrder] = useState<"newest" | "name">("newest");
@@ -67,14 +71,14 @@ export default function AdminPage() {
   const [pendingSignups, setPendingSignups] = useState<SignupRequest[]>([]);
   const [signupRaceSelections, setSignupRaceSelections] = useState<Record<string, string>>({});
   const [signupActionLoadingId, setSignupActionLoadingId] = useState<string | null>(null);
-  const [status, setStatus] = useState("Ready");
+  const [status, setStatus] = useState(
+    supabase
+      ? "Ready"
+      : "Admin console is not configured on this deployment (missing Supabase environment variables)."
+  );
 
   useEffect(() => {
-    if (!supabase) {
-      setAuthLoading(false);
-      setStatus("Admin console is not configured on this deployment (missing Supabase environment variables).");
-      return;
-    }
+    if (!supabase) return;
 
     let isMounted = true;
     async function updateAccess(email: string | null) {
@@ -217,6 +221,14 @@ export default function AdminPage() {
     [raceRef, races]
   );
 
+  function hydratePublicStatusFields(race: Race | null) {
+    setStatusNoteInput(race?.statusNote ?? "");
+    setWeatherNoteInput(race?.weatherNote ?? "");
+    if (race?.isLiveOverride === true) setLiveOverrideInput("live");
+    else if (race?.isLiveOverride === false) setLiveOverrideInput("not_live");
+    else setLiveOverrideInput("auto");
+  }
+
   const visibleRaces = useMemo(() => {
     const lowered = search.trim().toLowerCase();
     const filtered = races.filter((race) => {
@@ -262,6 +274,7 @@ export default function AdminPage() {
       const relayPoints = relayPointsText.split("\n").map((point) => point.trim()).filter(Boolean);
       const race = await createRaceRecord({ name: raceName, relayPoints });
       setRaceRef(race.code);
+      hydratePublicStatusFields(race);
       await refreshRaces();
       await refreshRaceContext(race.code);
       setStatus(`Race created: ${race.name} (${race.code})`);
@@ -314,6 +327,32 @@ export default function AdminPage() {
     } catch (error) {
       console.error("Failed to complete race", error);
       setStatus("Completion failed.");
+    }
+  }
+
+  async function saveRaceStatusDetails(event: { preventDefault: () => void }) {
+    event.preventDefault();
+    if (!selectedRace) {
+      setStatus("Select a race first.");
+      return;
+    }
+    try {
+      const updated = await updateRaceStatusDetails({
+        raceId: selectedRace.id,
+        statusNote: statusNoteInput.trim() || null,
+        weatherNote: weatherNoteInput.trim() || null,
+        isLiveOverride: liveOverrideInput === "auto" ? null : liveOverrideInput === "live",
+      });
+      setStatusNoteInput(updated.statusNote ?? "");
+      setWeatherNoteInput(updated.weatherNote ?? "");
+      if (updated.isLiveOverride === true) setLiveOverrideInput("live");
+      else if (updated.isLiveOverride === false) setLiveOverrideInput("not_live");
+      else setLiveOverrideInput("auto");
+      await refreshRaces();
+      setStatus(`Public status updated for ${updated.code}.`);
+    } catch (error) {
+      console.error("Failed to save race status details", error);
+      setStatus("Failed to update public race status.");
     }
   }
 
@@ -526,6 +565,7 @@ export default function AdminPage() {
               className={raceRef === race.code ? "secondary selected" : "secondary"}
               onClick={() => {
                 setRaceRef(race.code);
+                hydratePublicStatusFields(race);
                 void refreshRaceContext(race.code);
               }}
             >
@@ -599,6 +639,8 @@ export default function AdminPage() {
             {selectedRace.name} ({selectedRace.code}) - status: {selectedRace.status} - teams: {teams.length} - relay points: {relayPoints.length}
             {selectedRace.startedAt ? ` - started: ${formatDateTime(selectedRace.startedAt)}` : ""}
             {selectedRace.endedAt ? ` - ended: ${formatDateTime(selectedRace.endedAt)}` : ""}
+            {selectedRace.statusNote ? ` - public note: ${selectedRace.statusNote}` : ""}
+            {selectedRace.weatherNote ? ` - weather: ${selectedRace.weatherNote}` : ""}
           </p>
         ) : (
           <p>Select a race from Race Finder or create a new one.</p>
@@ -642,6 +684,39 @@ export default function AdminPage() {
         <button type="button" className="secondary" onClick={completeRace} disabled={!raceRef || selectedRace?.status !== "active"}>
           Complete race
         </button>
+      </section>
+
+      <section className="card">
+        <h2>Public Race Status Controls</h2>
+        <form onSubmit={saveRaceStatusDetails}>
+          <label htmlFor="statusNoteInput">Public status note</label>
+          <input
+            id="statusNoteInput"
+            value={statusNoteInput}
+            onChange={(eventItem) => setStatusNoteInput(eventItem.target.value)}
+            placeholder="Grid open. Race starts in 20 minutes."
+          />
+          <label htmlFor="weatherNoteInput">Weather note</label>
+          <input
+            id="weatherNoteInput"
+            value={weatherNoteInput}
+            onChange={(eventItem) => setWeatherNoteInput(eventItem.target.value)}
+            placeholder="Clear skies, light wind."
+          />
+          <label htmlFor="liveOverrideInput">Live override</label>
+          <select
+            id="liveOverrideInput"
+            value={liveOverrideInput}
+            onChange={(eventItem) => setLiveOverrideInput(eventItem.target.value as "auto" | "live" | "not_live")}
+          >
+            <option value="auto">Auto (use race lifecycle)</option>
+            <option value="live">Force live</option>
+            <option value="not_live">Force not live</option>
+          </select>
+          <button type="submit" disabled={!selectedRace}>
+            Save public status
+          </button>
+        </form>
       </section>
 
       <section className="card">

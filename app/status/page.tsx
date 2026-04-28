@@ -1,20 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import serviceList from "@/data/services.json";
-
-type ServiceState = "operational" | "degraded";
-type StatusItem = { component: string; url: string; state: ServiceState; note: string; checkedAt: string; httpStatus: number | null };
-type StatusPayload = { lastUpdated: string; services: StatusItem[] };
-const STALE_AFTER_MS = 30 * 60 * 1000;
-
-const fallbackItems: StatusItem[] = serviceList.map((service) => ({
-  ...service,
-  state: "degraded",
-  note: "Status feed unavailable. Awaiting probe results.",
-  checkedAt: "",
-  httpStatus: null,
-}));
+import { getRaces } from "@/lib/controller/race-service";
+import { Race } from "@/lib/controller/types";
 
 const formatTimestamp = (value: string | null) => {
   if (!value) return "unknown";
@@ -22,40 +10,49 @@ const formatTimestamp = (value: string | null) => {
   return Number.isNaN(date.getTime()) ? "unknown" : date.toLocaleString();
 };
 
-const isStale = (lastUpdated: string | null) => {
-  if (!lastUpdated) return true;
-  const time = new Date(lastUpdated).getTime();
-  if (Number.isNaN(time)) return true;
-  return Date.now() - time > STALE_AFTER_MS;
-};
+function isRaceLive(race: Race): boolean {
+  return race.isLiveOverride ?? race.status === "active";
+}
+
+function RaceList({ races, emptyLabel }: Readonly<{ races: Race[]; emptyLabel: string }>) {
+  if (races.length === 0) return <p>{emptyLabel}</p>;
+  return (
+    <ul>
+      {races.map((race) => (
+        <li key={race.id}>
+          <strong>{race.name}</strong> ({race.code}) - {isRaceLive(race) ? "LIVE" : "not live"}
+          <br />
+          Lifecycle status: {race.status}
+          {race.startedAt ? ` - started ${formatTimestamp(race.startedAt)}` : ""}
+          {race.endedAt ? ` - ended ${formatTimestamp(race.endedAt)}` : ""}
+          {race.statusNote ? ` - update: ${race.statusNote}` : ""}
+          {race.weatherNote ? ` - weather: ${race.weatherNote}` : ""}
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 export default function StatusPage() {
-  const pageTitle = process.env.NEXT_PUBLIC_STATUS_PAGE_TITLE || "Celestial Circuit Status";
-  const [statusItems, setStatusItems] = useState<StatusItem[]>(fallbackItems);
+  const pageTitle = process.env.NEXT_PUBLIC_STATUS_PAGE_TITLE || "Celestial Circuit Race Status";
+  const [races, setRaces] = useState<Race[]>([]);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
-  const [sourceMessage, setSourceMessage] = useState("Loading latest probe snapshot...");
+  const [sourceMessage, setSourceMessage] = useState("Loading race status...");
 
   useEffect(() => {
     let cancelled = false;
     const loadStatus = async () => {
       try {
-        const response = await fetch("/status.json", { cache: "no-store" });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const payload = (await response.json()) as StatusPayload;
+        const nextRaces = await getRaces();
         if (cancelled) return;
-        const services = Array.isArray(payload.services) ? payload.services : fallbackItems;
-        setStatusItems(services);
-        setLastUpdated(payload.lastUpdated || null);
-        if (isStale(payload.lastUpdated || null)) {
-          setSourceMessage("Status data is stale. Probe workflow may be delayed.");
-        } else {
-          setSourceMessage("Live status is sourced from the latest GitHub Actions probe.");
-        }
+        setRaces(nextRaces);
+        setLastUpdated(new Date().toISOString());
+        setSourceMessage("Live race status is sourced from race control records.");
       } catch {
         if (cancelled) return;
-        setStatusItems(fallbackItems);
+        setRaces([]);
         setLastUpdated(null);
-        setSourceMessage("Status feed unavailable. Showing fallback service list.");
+        setSourceMessage("Race status is currently unavailable.");
       }
     };
     void loadStatus();
@@ -65,24 +62,37 @@ export default function StatusPage() {
   }, []);
 
   const lastUpdatedLabel = useMemo(() => formatTimestamp(lastUpdated), [lastUpdated]);
+  const liveRaces = useMemo(() => races.filter((race) => isRaceLive(race)), [races]);
+  const upcomingRaces = useMemo(
+    () => races.filter((race) => !isRaceLive(race) && race.status === "planned"),
+    [races]
+  );
+  const completedRaces = useMemo(
+    () => races.filter((race) => !isRaceLive(race) && race.status === "completed"),
+    [races]
+  );
 
   return (
     <main>
       <section className="card">
         <h1>{pageTitle}</h1>
         <p className="muted">
-          Real endpoint availability across the Celestial Circuit network, powered by scheduled GitHub Actions probes.
+          Track upcoming and active races with live/manual operations updates.
         </p>
         <p className="muted">{sourceMessage}</p>
         <p className="muted">Last updated: {lastUpdatedLabel}</p>
       </section>
       <section className="card">
-        <h2>Current Services</h2>
-        <ul>
-          {statusItems.map((item) => (
-            <li key={item.component}><strong>{item.component}:</strong> {item.state} - {item.note} ({item.url})</li>
-          ))}
-        </ul>
+        <h2>Live Races</h2>
+        <RaceList races={liveRaces} emptyLabel="No races are currently live." />
+      </section>
+      <section className="card">
+        <h2>Upcoming Races</h2>
+        <RaceList races={upcomingRaces} emptyLabel="No upcoming races are currently scheduled." />
+      </section>
+      <section className="card">
+        <h2>Completed Races</h2>
+        <RaceList races={completedRaces} emptyLabel="No completed races yet." />
       </section>
     </main>
   );

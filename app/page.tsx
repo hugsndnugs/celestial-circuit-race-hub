@@ -21,10 +21,10 @@ const targets: HubTarget[] = [
     cta: "Open team signup",
   },
   {
-    title: "Documentation",
-    description: "Race operations notes, setup, and future runbook entries.",
+    title: "Race Rules and Terms",
+    description: "Public race regulations, terms of service, and legal notices.",
     href: "/docs",
-    cta: "Open docs",
+    cta: "Open race docs",
   },
   {
     title: "Status",

@@ -7,6 +7,7 @@ import {
   createRaceSchema,
   createTeamSchema,
   raceIncidentNoteSchema,
+  raceStatusDetailsSchema,
   raceRefSchema,
   relayPassSchema,
 } from "@/lib/controller/validators";
@@ -49,6 +50,9 @@ function toRace(row: {
   status: "planned" | "active" | "completed";
   started_at: string | null;
   ended_at: string | null;
+  status_note: string | null;
+  weather_note: string | null;
+  is_live_override: boolean | null;
 }): Race {
   return {
     id: row.id,
@@ -57,6 +61,9 @@ function toRace(row: {
     status: row.status,
     startedAt: row.started_at,
     endedAt: row.ended_at,
+    statusNote: row.status_note,
+    weatherNote: row.weather_note,
+    isLiveOverride: row.is_live_override,
   };
 }
 function toTeam(row: {
@@ -241,7 +248,10 @@ async function resolveRace(reference: string): Promise<Race> {
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
       raceRef
     );
-  const query = supabase.from("races").select("id, code, name, status, started_at, ended_at").limit(1);
+  const query = supabase
+    .from("races")
+    .select("id, code, name, status, started_at, ended_at, status_note, weather_note, is_live_override")
+    .limit(1);
   const response = isUuid ? await query.eq("id", raceRef).single() : await query.eq("code", raceRef).single();
   if (response.error || !response.data) throw new Error("Race not found.");
   return toRace(response.data);
@@ -265,7 +275,10 @@ async function allocateRaceCode(): Promise<string> {
 }
 
 export async function getRaces(): Promise<Race[]> {
-  const { data, error } = await supabase.from("races").select("id, code, name, status, started_at, ended_at").order("id", { ascending: false });
+  const { data, error } = await supabase
+    .from("races")
+    .select("id, code, name, status, started_at, ended_at, status_note, weather_note, is_live_override")
+    .order("id", { ascending: false });
   if (error) throw new Error(error.message);
   return (data ?? []).map(toRace);
 }
@@ -277,7 +290,7 @@ export async function createRace(input: { name: string; relayPoints: string[] })
   const { data, error } = await supabase
     .from("races")
     .insert([{ name: payload.name, status: "planned", code, started_at: null, ended_at: null }])
-    .select("id, code, name, status, started_at, ended_at")
+    .select("id, code, name, status, started_at, ended_at, status_note, weather_note, is_live_override")
     .single();
   if (error || !data) throw new Error(error?.message ?? "Failed to create race.");
   const race = toRace(data);
@@ -300,7 +313,7 @@ export async function startRace(raceRef: string): Promise<Race> {
     .from("races")
     .update({ status: "active", started_at: startedAt })
     .eq("id", race.id)
-    .select("id, code, name, status, started_at, ended_at")
+    .select("id, code, name, status, started_at, ended_at, status_note, weather_note, is_live_override")
     .single();
   if (error || !data) throw new Error(error?.message ?? "Failed to start race.");
   return toRace(data);
@@ -315,9 +328,34 @@ export async function completeRace(raceRef: string): Promise<Race> {
     .from("races")
     .update({ status: "completed", ended_at: endedAt })
     .eq("id", race.id)
-    .select("id, code, name, status, started_at, ended_at")
+    .select("id, code, name, status, started_at, ended_at, status_note, weather_note, is_live_override")
     .single();
   if (error || !data) throw new Error(error?.message ?? "Failed to complete race.");
+  return toRace(data);
+}
+
+export async function updateRaceStatusDetails(input: {
+  raceId: string;
+  statusNote: string | null;
+  weatherNote: string | null;
+  isLiveOverride: boolean | null;
+}): Promise<Race> {
+  await requireAdminAccess();
+  const payload = raceStatusDetailsSchema.parse(input);
+  const race = await resolveRace(payload.raceId);
+  const statusNote = payload.statusNote?.trim() || null;
+  const weatherNote = payload.weatherNote?.trim() || null;
+  const { data, error } = await supabase
+    .from("races")
+    .update({
+      status_note: statusNote,
+      weather_note: weatherNote,
+      is_live_override: payload.isLiveOverride,
+    })
+    .eq("id", race.id)
+    .select("id, code, name, status, started_at, ended_at, status_note, weather_note, is_live_override")
+    .single();
+  if (error || !data) throw new Error(error?.message ?? "Failed to update race status details.");
   return toRace(data);
 }
 

@@ -50,3 +50,10 @@ export const raceIncidentNoteSchema = z.object({
   note: z.string().trim().min(3).max(2000),
   createdBy: z.email(),
 });
+
+export const raceStatusDetailsSchema = z.object({
+  raceId: raceRefSchema,
+  statusNote: z.string().trim().max(500).nullable(),
+  weatherNote: z.string().trim().max(200).nullable(),
+  isLiveOverride: z.boolean().nullable(),
+});
