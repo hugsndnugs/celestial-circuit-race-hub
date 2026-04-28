@@ -14,6 +14,11 @@ All frontend repositories use static export patterns.
 - `NEXT_PUBLIC_*` values must be present in GitHub Actions at build time.
 - Project Pages deployments need correct `basePath`/`assetPrefix` behavior.
 - Enable Pages in each GitHub repository with source set to GitHub Actions.
+- Required for this repo's Pages build:
+  - `NEXT_PUBLIC_SUPABASE_URL`
+  - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+  - Configure each as either a GitHub Actions Variable (preferred) or Secret with the same name.
+  - The workflow resolves values in this order: Variables first, then Secrets fallback.
 
 ## Supabase Deployment
 
