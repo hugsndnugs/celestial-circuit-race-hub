@@ -1,10 +1,21 @@
 import type { NextConfig } from "next";
 
 const repositoryName = process.env.GITHUB_REPOSITORY?.split("/")[1] ?? "";
-const isGithubPagesBuild = process.env.GITHUB_ACTIONS === "true" && repositoryName.length > 0;
-const githubPagesProjectBasePath = isGithubPagesBuild ? `/${repositoryName}` : "";
+const hasRepoName = repositoryName.length > 0;
+const defaultProjectBasePath = hasRepoName ? `/${repositoryName}` : "";
 
-const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? githubPagesProjectBasePath;
+const normalizeBasePath = (value: string | undefined): string | undefined => {
+  if (!value) return undefined;
+  if (value === "/") return "";
+  const withLeadingSlash = value.startsWith("/") ? value : `/${value}`;
+  return withLeadingSlash.endsWith("/") ? withLeadingSlash.slice(0, -1) : withLeadingSlash;
+};
+
+const envBasePath = normalizeBasePath(process.env.NEXT_PUBLIC_BASE_PATH);
+const isGithubPagesBuild = process.env.GITHUB_ACTIONS === "true";
+const basePath = envBasePath ?? (isGithubPagesBuild ? defaultProjectBasePath : "");
+const envAssetPrefix = normalizeBasePath(process.env.NEXT_PUBLIC_ASSET_PREFIX);
+const assetPrefix = envAssetPrefix ?? (basePath.length > 0 ? basePath : undefined);
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -14,7 +25,7 @@ const nextConfig: NextConfig = {
     unoptimized: true
   },
   basePath,
-  assetPrefix: process.env.NEXT_PUBLIC_ASSET_PREFIX || (basePath.length > 0 ? basePath : undefined)
+  assetPrefix
 };
 
 export default nextConfig;
