@@ -176,6 +176,77 @@ a.cc-link.secondary {
   text-decoration: none;
 }
 
+.card label {
+  display: block;
+  margin: 0.35rem 0 0.2rem;
+  font-size: 0.95rem;
+  color: rgba(232, 237, 242, 0.9);
+}
+
+.card input:not([type="checkbox"]):not([type="radio"]),
+.card select,
+.card textarea {
+  width: 100%;
+  appearance: none;
+  background: #0d1219;
+  color: #e8edf2;
+  border: 1px solid #314258;
+  border-radius: 0.45rem;
+  padding: 0.62rem 0.7rem;
+  margin: 0.2rem 0 1rem;
+  font-size: 1rem;
+  font-family: inherit;
+}
+
+.card textarea {
+  resize: vertical;
+  min-height: 2.6rem;
+}
+
+.card button,
+a.button-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  border: 0;
+  background: var(--cc-primary);
+  color: #fff;
+  padding: 0.65rem 0.95rem;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.card button.secondary,
+a.button-link.secondary {
+  background: #1b2635;
+  border: 1px solid #32455e;
+}
+
+.card button.selected,
+.card button.secondary.selected,
+a.button-link.selected,
+a.button-link.secondary.selected {
+  background: #25496f;
+  border: 1px solid #4b79aa;
+}
+
+.card button:disabled,
+a.button-link[aria-disabled="true"] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.card input[type="checkbox"] {
+  accent-color: var(--cc-primary);
+}
+
+.card :is(button, a.button-link, input, select, textarea):focus-visible {
+  outline: 2px solid rgba(25, 113, 255, 0.65);
+  outline-offset: 2px;
+}
+
 .cc-error {
   color: #fda4af;
   font-size: 0.9rem;
