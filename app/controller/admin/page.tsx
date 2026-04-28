@@ -23,7 +23,7 @@ import {
 import { AdminIdentity, getCurrentAdminIdentity, isAllowedAdmin, updateCurrentAdminDisplayName } from "@/lib/controller/admin-auth";
 import { getSignedInLabel } from "@/lib/controller/admin-display";
 import { formatDateTime } from "@/lib/controller/datetime";
-import { supabase } from "@/lib/controller/supabase-client";
+import { getSupabaseBrowser } from "@/lib/signups/supabaseBrowser";
 import { CorrectionRequest, Race, RaceIncidentNote, RelayEvent, RelayPoint, SignupRequest, Team } from "@/lib/controller/types";
 
 function getMetadataName(metadata: Record<string, unknown> | undefined): string | null {
@@ -37,6 +37,7 @@ function getMetadataName(metadata: Record<string, unknown> | undefined): string 
 }
 
 export default function AdminPage() {
+  const supabase = getSupabaseBrowser();
   const [authIdentity, setAuthIdentity] = useState<AdminIdentity | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [signInEmail, setSignInEmail] = useState("");
@@ -69,6 +70,12 @@ export default function AdminPage() {
   const [status, setStatus] = useState("Ready");
 
   useEffect(() => {
+    if (!supabase) {
+      setAuthLoading(false);
+      setStatus("Admin console is not configured on this deployment (missing Supabase environment variables).");
+      return;
+    }
+
     let isMounted = true;
     async function updateAccess(email: string | null) {
       const allowed = email ? await isAllowedAdmin(email) : false;
@@ -78,12 +85,19 @@ export default function AdminPage() {
     }
 
     async function loadAuthState() {
-      const identity = await getCurrentAdminIdentity();
-      const email = identity?.email ?? null;
-      if (!isMounted) return;
-      setAuthIdentity(identity);
-      setProfileDisplayName(identity?.displayName ?? "");
-      await updateAccess(email);
+      try {
+        const identity = await getCurrentAdminIdentity();
+        const email = identity?.email ?? null;
+        if (!isMounted) return;
+        setAuthIdentity(identity);
+        setProfileDisplayName(identity?.displayName ?? "");
+        await updateAccess(email);
+      } catch (error) {
+        console.error("Failed to load admin auth state", error);
+        if (!isMounted) return;
+        setAuthLoading(false);
+        setStatus("Unable to initialize admin auth.");
+      }
     }
 
     void loadAuthState();
@@ -101,10 +115,14 @@ export default function AdminPage() {
       isMounted = false;
       data.subscription.unsubscribe();
     };
-  }, []);
+  }, [supabase]);
 
   async function sendMagicLink(event: { preventDefault: () => void }) {
     event.preventDefault();
+    if (!supabase) {
+      setStatus("Admin auth is unavailable on this deployment.");
+      return;
+    }
     if (!signInEmail.trim()) {
       setStatus("Enter an email to sign in.");
       return;
@@ -123,6 +141,10 @@ export default function AdminPage() {
   }
 
   async function signOut() {
+    if (!supabase) {
+      setStatus("Admin auth is unavailable on this deployment.");
+      return;
+    }
     const { error } = await supabase.auth.signOut();
     if (error) {
       console.error("Failed to sign out admin", error);
