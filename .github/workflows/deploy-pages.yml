@@ -35,6 +35,10 @@ jobs:
         run: npm ci
 
       - name: Build static export
+        env:
+          # Project pages are served from /<repo-name>, so exported asset/route URLs must be prefixed.
+          NEXT_PUBLIC_BASE_PATH: /${{ github.event.repository.name }}
+          NEXT_PUBLIC_ASSET_PREFIX: /${{ github.event.repository.name }}
         run: npm run build
 
       - name: Upload pages artifact
