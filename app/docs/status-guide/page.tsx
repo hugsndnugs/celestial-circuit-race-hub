@@ -1,6 +1,11 @@
+import { DocsNav } from "@/components/DocsNav";
+
 export default function StatusGuidePage() {
   return (
-    <main>
+    <main className="docs-main">
+      <section className="card">
+        <DocsNav />
+      </section>
       <section className="card">
         <h1>Status Guide</h1>
         <p className="muted">

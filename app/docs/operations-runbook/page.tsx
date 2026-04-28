@@ -1,6 +1,11 @@
+import { DocsNav } from "@/components/DocsNav";
+
 export default function OperationsRunbookPage() {
   return (
-    <main>
+    <main className="docs-main">
+      <section className="card">
+        <DocsNav />
+      </section>
       <section className="card">
         <h1>Operations Runbook</h1>
         <p className="muted">Race-day operating standard from preflight through post-race closure.</p>

@@ -7,7 +7,7 @@ export default function DocsPage() {
   const docsVersion = process.env.NEXT_PUBLIC_DOCS_VERSION || "v1";
 
   return (
-    <main>
+    <main className="docs-main">
       <section className="card">
         <h1>{docsTitle}</h1>
         <p className="muted">
@@ -31,7 +31,9 @@ export default function DocsPage() {
           <article key={section.title} className="card">
             <h2>{section.title}</h2>
             <p className="muted">{section.description}</p>
-            <Link href={section.href}>Open section</Link>
+            <Link href={section.href} className="button-link">
+              Open section
+            </Link>
           </article>
         ))}
       </section>

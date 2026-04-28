@@ -1,6 +1,11 @@
+import { DocsNav } from "@/components/DocsNav";
+
 export default function DeploymentsPage() {
   return (
-    <main>
+    <main className="docs-main">
+      <section className="card">
+        <DocsNav />
+      </section>
       <section className="card">
         <h1>Deployments</h1>
         <p className="muted">

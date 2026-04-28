@@ -1,6 +1,11 @@
+import { DocsNav } from "@/components/DocsNav";
+
 export default function EnvironmentPage() {
   return (
-    <main>
+    <main className="docs-main">
+      <section className="card">
+        <DocsNav />
+      </section>
       <section className="card">
         <h1>Environment</h1>
         <p className="muted">Consolidated environment matrix for all Celestial Circuit projects.</p>

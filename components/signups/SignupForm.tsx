@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
+import type { SyntheticEvent } from "react";
 import { getSupabaseBrowser } from "@/lib/signups/supabaseBrowser";
 import { canSubmitNow, markSubmittedNow, msUntilNextSubmit } from "@/lib/signups/throttle";
 import { type FieldErrors, validateSignupPayload } from "@/lib/signups/validation";
@@ -20,21 +21,16 @@ export function SignupForm() {
       teammates_discord: "",
       contact_email: "",
       notes: "",
-      company_url: "",
     }),
     []
   );
   const [values, setValues] = useState(initial);
 
   const onSubmit = useCallback(
-    async (e: React.FormEvent<HTMLFormElement>) => {
+    async (e: SyntheticEvent<HTMLFormElement>) => {
       e.preventDefault();
       setErrors({});
       setConfigError(null);
-      if (values.company_url?.trim()) {
-        router.push("/signups/submitted?reason=ok");
-        return;
-      }
       if (!canSubmitNow()) {
         const wait = Math.ceil(msUntilNextSubmit() / 1000);
         setErrors({
@@ -142,10 +138,6 @@ export function SignupForm() {
         </label>
         <textarea id="notes" name="notes" rows={4} className="cc-input" value={values.notes} onChange={(e) => setValues((v) => ({ ...v, notes: e.target.value }))} />
         {errors.notes ? <p className="cc-error mt-1">{errors.notes}</p> : null}
-      </div>
-      <div className="absolute -left-[9999px] top-auto h-px w-px overflow-hidden opacity-0">
-        <label htmlFor="company_url">Company URL</label>
-        <input id="company_url" name="company_url" type="text" tabIndex={-1} autoComplete="off" value={values.company_url} onChange={(e) => setValues((v) => ({ ...v, company_url: e.target.value }))} />
       </div>
       <div className="flex flex-wrap items-center gap-3 pt-2">
         <button type="submit" className="cc-btn-primary" disabled={submitting}>
