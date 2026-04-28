@@ -10,6 +10,7 @@ This document is the consolidated environment variable reference for all
 | `NEXT_PUBLIC_SUPABASE_URL` | `race-controller`, `race-signups/team-signup` | Yes | Browser-safe Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `race-controller`, `race-signups/team-signup` | Yes | Browser-safe anon key for RLS protected queries |
 | `NEXT_PUBLIC_ADMIN_EMAILS` | `race-controller` | No | Fallback admin allowlist when `admin_users` has no active match |
+| `NEXT_PUBLIC_DEV_EMAILS` | `race-controller` | No | Fallback developer allowlist when `dev_users` has no active match |
 | `NEXT_PUBLIC_DISCORD_PROXY_URL` | `race-controller` | No | Proxy endpoint for optional Discord notifications |
 | `NEXT_PUBLIC_BASE_PATH` | `race-signups/team-signup` | No | Base path for GitHub project Pages hosting |
 | `NEXT_PUBLIC_ASSET_PREFIX` | `race-signups/team-signup` | No | Asset path override for non-standard hosting |
@@ -58,3 +59,42 @@ These values are not frontend `.env.local` variables, but are required for opera
 2. Pages workflows have all required `NEXT_PUBLIC_*` build values.
 3. Supabase functions have required secrets set before deployment.
 4. Keep-alive workflow succeeds and returns HTTP 200.
+
+## Managing Developer Access
+
+Internal docs access now supports a dedicated developer role.
+
+### Primary method (database)
+
+Use `public.dev_users` in Supabase as the source of truth:
+
+- Add an active row for each developer email.
+- Use lowercase email values.
+- Set `is_active = true` to grant access.
+
+Example:
+
+```sql
+insert into public.dev_users (email, display_name, is_active)
+values ('dev@example.com', 'Dev User', true)
+on conflict (email)
+do update
+set display_name = excluded.display_name,
+    is_active = excluded.is_active;
+```
+
+To revoke access:
+
+```sql
+update public.dev_users
+set is_active = false
+where email = 'dev@example.com';
+```
+
+### Fallback method (environment)
+
+If `dev_users` has no active match, the app checks `NEXT_PUBLIC_DEV_EMAILS`.
+
+- Comma-separated list of developer emails.
+- Keep this for emergency/fallback access only.
+- Prefer `dev_users` for normal operations.

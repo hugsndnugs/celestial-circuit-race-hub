@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 export function PublicDocsPlaceholder() {
   return (
     <main className="docs-main">
@@ -7,6 +9,9 @@ export function PublicDocsPlaceholder() {
         <h1>Race Rules and Public Terms</h1>
         <p className="muted">
           This page provides public-facing race guidance while internal engineering documents remain restricted.
+        </p>
+        <p>
+          Developers can sign in at <Link href="/dev/signin">/dev/signin</Link> to access internal docs.
         </p>
       </section>
 

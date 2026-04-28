@@ -1,7 +1,7 @@
 "use client";
 
 import { ReactNode, useEffect, useState } from "react";
-import { getCurrentAdminIdentity, isAllowedAdmin } from "@/lib/controller/admin-auth";
+import { getCurrentAdminIdentity, isAllowedDeveloper } from "@/lib/controller/admin-auth";
 import { PublicDocsPlaceholder } from "@/app/docs/PublicDocsPlaceholder";
 
 export default function DocsLayout({ children }: Readonly<{ children: ReactNode }>) {
@@ -13,7 +13,7 @@ export default function DocsLayout({ children }: Readonly<{ children: ReactNode 
     async function checkAccess() {
       try {
         const identity = await getCurrentAdminIdentity();
-        const allowed = identity?.email ? await isAllowedAdmin(identity.email) : false;
+        const allowed = identity?.email ? await isAllowedDeveloper(identity.email) : false;
         if (!isMounted) return;
         setHasAccess(allowed);
       } catch {

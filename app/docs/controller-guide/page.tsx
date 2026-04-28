@@ -20,6 +20,7 @@ export default function ControllerGuidePage() {
         <ul>
           <li>Run correction writes through the `admin-corrections` Edge Function only.</li>
           <li>Treat `admin_users` table as primary admin allowlist source.</li>
+          <li>Treat `dev_users` table as primary developer docs allowlist source.</li>
           <li>Capture incidents with enough detail for post-race review.</li>
         </ul>
         <p>

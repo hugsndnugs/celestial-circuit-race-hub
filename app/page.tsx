@@ -27,6 +27,12 @@ const targets: HubTarget[] = [
     cta: "Open race docs",
   },
   {
+    title: "Developer Sign-In",
+    description: "Internal sign-in for developer docs access without race director controls.",
+    href: "/dev/signin",
+    cta: "Open developer sign-in",
+  },
+  {
     title: "Status",
     description: "System status page and race-day alerts.",
     href: "/status",
