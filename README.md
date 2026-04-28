@@ -37,6 +37,7 @@ Copy `.env.example` to `.env.local` and set values as needed.
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - Add them as repository/environment Variables (preferred) or Secrets with the same names.
+   - Ensure both values come from the same Supabase project (`https://<project-ref>.supabase.co` must match anon key JWT `ref`).
 4. The workflow `.github/workflows/deploy-pages.yml` builds with `next build` and deploys the `out` folder.
 5. Your site will be served at:
    - `https://<github-user>.github.io/celestial-circuit-race-hub/`
