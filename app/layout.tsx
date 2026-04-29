@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Exo_2, Orbitron } from "next/font/google";
 import { PrimaryNav } from "./PrimaryNav";
+import { SiteFooter } from "./SiteFooter";
 import logo from "./celestial_circuit_logo.png";
 import "./globals.css";
 
@@ -44,6 +45,7 @@ export default function RootLayout({
           </div>
         </header>
         {children}
+        <SiteFooter />
       </body>
     </html>
   );
