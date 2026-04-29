@@ -25,8 +25,37 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyZWYiOiJleGFtcGxlIiwicm9sZSI6ImFub24ifQ.signature
+        run: npm run build
+
   build:
     runs-on: ubuntu-latest
+    needs: ci
+    if: ${{ always() }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -112,3 +141,32 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  finalize:
+    runs-on: ubuntu-latest
+    needs:
+      - ci
+      - build
+      - deploy
+    if: ${{ always() }}
+    steps:
+      - name: Report job results
+        run: |
+          echo "ci=${{ needs.ci.result }}"
+          echo "build=${{ needs.build.result }}"
+          echo "deploy=${{ needs.deploy.result }}"
+          {
+            echo "### Workflow Results"
+            echo ""
+            echo "- CI: ${{ needs.ci.result }}"
+            echo "- Build: ${{ needs.build.result }}"
+            echo "- Deploy: ${{ needs.deploy.result }}"
+            echo ""
+            echo "Note: this workflow only fails when build/deploy fail."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail if deploy stages failed
+        if: ${{ needs.build.result != 'success' || needs.deploy.result != 'success' }}
+        run: |
+          echo "Failing workflow because build/deploy did not succeed."
+          exit 1
