@@ -97,11 +97,6 @@ export default function HomePage() {
           </article>
         ))}
       </section>
-      <footer className="footer">
-        <p>
-          Staff access: <Link href="/signin">Sign in</Link>
-        </p>
-      </footer>
     </main>
   );
 }
