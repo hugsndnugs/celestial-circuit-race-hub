@@ -36,6 +36,7 @@ All frontend repositories use static export patterns.
 Controller function set:
 
 - `admin-corrections`
+- `admin-race-ops`
 - `keep-alive`
 
 Required Supabase function secrets:

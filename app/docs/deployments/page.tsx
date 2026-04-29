@@ -25,7 +25,7 @@ export default function DeploymentsPage() {
         <ul>
           <li>Apply SQL migrations in order from each repository migration directory.</li>
           <li>
-            Deploy Edge Functions (`admin-corrections`, `keep-alive`) and configure required
+            Deploy Edge Functions (`admin-corrections`, `admin-race-ops`, `keep-alive`) and configure required
             secrets in Supabase.
           </li>
           <li>

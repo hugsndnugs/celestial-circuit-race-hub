@@ -70,12 +70,18 @@ main {
     linear-gradient(180deg, #101722 0%, #0e1116 78%);
 }
 
-.brand-link {
+.brand-header-shell {
   max-width: var(--page-max-width);
   margin: 0 auto;
   padding: 0.85rem var(--page-pad-x) var(--space-md);
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.brand-link {
   display: inline-flex;
   align-items: center;
+  justify-self: center;
   gap: var(--space-lg);
   text-decoration: none;
 }
@@ -143,6 +149,53 @@ main {
 .brand-link:focus-visible .brand-name {
   text-decoration: underline;
   text-decoration-thickness: 2px;
+}
+
+.primary-nav ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.primary-nav li {
+  margin: 0;
+}
+
+.primary-nav li + li {
+  margin-top: 0;
+}
+
+.primary-nav a {
+  color: rgba(232, 237, 242, 0.9);
+  text-decoration: none;
+  border: 1px solid var(--cc-border);
+  border-radius: 999px;
+  padding: var(--space-xs) 0.72rem;
+  font-size: 0.92rem;
+  transition: background-color 120ms ease-in-out, border-color 120ms ease-in-out, color 120ms ease-in-out;
+}
+
+.primary-nav a:hover {
+  background: #1b2635;
+  border-color: #3a5370;
+  color: #ffffff;
+}
+
+.primary-nav a.active,
+.primary-nav a[aria-current="page"] {
+  background: #1b2635;
+  border-color: #3a5370;
+  color: #ffffff;
+}
+
+.primary-nav a:focus-visible {
+  outline: 2px solid rgba(25, 113, 255, 0.65);
+  outline-offset: 2px;
 }
 
 .hero {
@@ -474,6 +527,18 @@ a.button-link[aria-disabled="true"] {
 }
 
 @media (max-width: 840px) {
+  .brand-header-shell {
+    padding: var(--space-md) 1rem var(--space-sm);
+  }
+
+  .primary-nav ul {
+    gap: var(--space-xs);
+  }
+
+  .primary-nav a {
+    font-size: 0.88rem;
+  }
+
   .brand-logo {
     width: 155px;
   }

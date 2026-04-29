@@ -1,18 +1,23 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { getCurrentUserEmail, isAllowedAdmin, isAllowedMarshal } from "@/lib/controller/admin-auth";
 import { formatDateTime } from "@/lib/controller/datetime";
 import { getRaces, getRelayPointsByRace, getTeamsByRace, markRelayPass, postDiscordRelayUpdate } from "@/lib/controller/race-service";
 import { type RelayPoint, type Team } from "@/lib/controller/types";
 
 export default function MarshalPage() {
+  const [isCheckingAccess, setIsCheckingAccess] = useState(true);
+  const [signedInEmail, setSignedInEmail] = useState<string | null>(null);
+  const [hasMarshalAccess, setHasMarshalAccess] = useState(false);
   const [raceRef, setRaceRef] = useState("");
   const [teams, setTeams] = useState<Team[]>([]);
   const [relayPoints, setRelayPoints] = useState<RelayPoint[]>([]);
   const [selectedRelayPointId, setSelectedRelayPointId] = useState("");
   const [message, setMessage] = useState("Enter race code to load marshal controls.");
   const [offlineQueue, setOfflineQueue] = useState<Array<{ teamId: string; relayPointId: string; enqueuedAt: string }>>(() => {
-    if (typeof globalThis === "undefined" || typeof globalThis.localStorage === "undefined") return [];
+    if (globalThis?.localStorage === undefined) return [];
     const raw = globalThis.localStorage.getItem("marshal-offline-queue");
     if (!raw) return [];
     try {
@@ -24,9 +29,37 @@ export default function MarshalPage() {
 
   const offlineCount = useMemo(() => offlineQueue.length, [offlineQueue]);
 
+  useEffect(() => {
+    let isMounted = true;
+    async function checkAccess() {
+      try {
+        const email = await getCurrentUserEmail();
+        if (!isMounted) return;
+        setSignedInEmail(email);
+        if (!email) {
+          setHasMarshalAccess(false);
+          return;
+        }
+        const [adminAllowed, marshalAllowed] = await Promise.all([isAllowedAdmin(email), isAllowedMarshal(email)]);
+        if (!isMounted) return;
+        setHasMarshalAccess(adminAllowed || marshalAllowed);
+      } catch {
+        if (!isMounted) return;
+        setHasMarshalAccess(false);
+      } finally {
+        if (!isMounted) return;
+        setIsCheckingAccess(false);
+      }
+    }
+    void checkAccess();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   function persistQueue(nextQueue: Array<{ teamId: string; relayPointId: string; enqueuedAt: string }>) {
     setOfflineQueue(nextQueue);
-    if (typeof globalThis.localStorage !== "undefined") {
+    if (globalThis.localStorage !== undefined) {
       globalThis.localStorage.setItem("marshal-offline-queue", JSON.stringify(nextQueue));
     }
   }
@@ -94,6 +127,45 @@ export default function MarshalPage() {
     }
     persistQueue(remaining);
     setMessage(remaining.length === 0 ? "Offline queue synced." : `${remaining.length} queued passes still pending.`);
+  }
+
+  if (isCheckingAccess) {
+    return (
+      <main className="page-stack">
+        <section className="card">
+          <h1>Marshal View</h1>
+          <p>Checking access...</p>
+        </section>
+      </main>
+    );
+  }
+
+  if (!signedInEmail) {
+    return (
+      <main className="page-stack">
+        <section className="card">
+          <h1>Marshal View</h1>
+          <p>You must be signed in to access marshal controls.</p>
+          <p>
+            <Link href="/signin">Sign in</Link>
+          </p>
+        </section>
+      </main>
+    );
+  }
+
+  if (!hasMarshalAccess) {
+    return (
+      <main className="page-stack">
+        <section className="card">
+          <h1>Marshal View</h1>
+          <p>Access denied. This account is not on the marshal or admin allowlist.</p>
+          <p>
+            Signed in as {signedInEmail}. <Link href="/signin">Switch account</Link>
+          </p>
+        </section>
+      </main>
+    );
   }
 
   return (

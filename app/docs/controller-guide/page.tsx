@@ -19,6 +19,7 @@ export default function ControllerGuidePage() {
         <h2>Critical Operating Rules</h2>
         <ul>
           <li>Run correction writes through the `admin-corrections` Edge Function only.</li>
+          <li>Run admin race setup writes through the `admin-race-ops` Edge Function only.</li>
           <li>Treat `admin_users` table as primary admin allowlist source.</li>
           <li>Treat `dev_users` table as primary developer docs allowlist source.</li>
           <li>Capture incidents with enough detail for post-race review.</li>

@@ -14,8 +14,8 @@
 
 1. Public user submits signup form.
 2. App inserts pending request into `team_signup_requests`.
-3. Duplicate screening uses `team_signup_has_recent_duplicate` RPC.
-4. Browser-side access stays within RLS constraints.
+3. Duplicate screening uses `team_signup_has_recent_duplicate` RPC (`SECURITY INVOKER`).
+4. Browser-side access stays within RLS constraints, including a bounded recent-read policy used for duplicate screening.
 
 ## Moderation and Promotion
 

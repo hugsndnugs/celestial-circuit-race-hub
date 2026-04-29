@@ -1,21 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { getCurrentUserEmail, isAllowedAdmin, isAllowedDeveloper, isAllowedMarshal } from "@/lib/controller/admin-auth";
 import { getSupabaseBrowser } from "@/lib/signups/supabaseBrowser";
-import { getCurrentUserEmail, isAllowedDeveloper } from "@/lib/controller/admin-auth";
 
-export default function DeveloperSignInPage() {
+export default function UnifiedSignInPage() {
   const supabase = getSupabaseBrowser();
   const [email, setEmail] = useState("");
   const [signedInEmail, setSignedInEmail] = useState<string | null>(null);
+  const [hasAdminAccess, setHasAdminAccess] = useState(false);
   const [hasDeveloperAccess, setHasDeveloperAccess] = useState(false);
-  const [status, setStatus] = useState("Enter your developer email to sign in.");
+  const [hasMarshalAccess, setHasMarshalAccess] = useState(false);
+  const [status, setStatus] = useState("Enter your email to sign in.");
 
-  const redirectUrl =
-    globalThis.location === undefined
-      ? "/dev/signin"
-      : `${globalThis.location.origin}/dev/signin`;
+  const redirectUrl = globalThis.location === undefined ? "/signin" : `${globalThis.location.origin}/signin`;
 
   useEffect(() => {
     let isMounted = true;
@@ -24,12 +23,20 @@ export default function DeveloperSignInPage() {
       if (!isMounted) return;
       setSignedInEmail(currentEmail);
       if (!currentEmail) {
+        setHasAdminAccess(false);
         setHasDeveloperAccess(false);
+        setHasMarshalAccess(false);
         return;
       }
-      const allowed = await isAllowedDeveloper(currentEmail);
+      const [adminAllowed, developerAllowed, marshalAllowed] = await Promise.all([
+        isAllowedAdmin(currentEmail),
+        isAllowedDeveloper(currentEmail),
+        isAllowedMarshal(currentEmail),
+      ]);
       if (!isMounted) return;
-      setHasDeveloperAccess(allowed);
+      setHasAdminAccess(adminAllowed);
+      setHasDeveloperAccess(developerAllowed);
+      setHasMarshalAccess(marshalAllowed);
     }
     void loadSessionState();
     return () => {
@@ -40,7 +47,7 @@ export default function DeveloperSignInPage() {
   async function sendMagicLink(event: { preventDefault: () => void }) {
     event.preventDefault();
     if (!supabase) {
-      setStatus("Developer auth is unavailable on this deployment.");
+      setStatus("Sign-in is unavailable on this deployment.");
       return;
     }
     if (!email.trim()) {
@@ -55,38 +62,40 @@ export default function DeveloperSignInPage() {
       setStatus("Failed to send sign-in email.");
       return;
     }
-    setStatus("Developer magic link sent. Complete sign-in from your email.");
+    setStatus("Magic link sent. Complete sign-in from your email.");
   }
 
   async function signOut() {
     if (!supabase) return;
     await supabase.auth.signOut();
     setSignedInEmail(null);
+    setHasAdminAccess(false);
     setHasDeveloperAccess(false);
+    setHasMarshalAccess(false);
     setStatus("Signed out.");
   }
 
   return (
     <main className="page-stack">
       <section className="card">
-        <h1>Developer Sign-In</h1>
-        <p className="muted">Sign in for internal engineering docs access. This does not grant race director controls.</p>
+        <h1>Sign In</h1>
+        <p className="muted">Centralized sign-in for admin, marshal, and developer access.</p>
         <p>
-          Prefer the centralized <Link href="/signin">/signin</Link> page for all role sign-in flows.
-        </p>
-        <p>
-          Allowlisted developer emails can access docs after sign-in. Configure{" "}
-          <code>NEXT_PUBLIC_DEV_EMAILS</code> for dev-only access and <code>NEXT_PUBLIC_ADMIN_EMAILS</code> for admin access.
+          Configure <code>NEXT_PUBLIC_ADMIN_EMAILS</code>, <code>NEXT_PUBLIC_DEV_EMAILS</code>, and{" "}
+          <code>NEXT_PUBLIC_MARSHAL_EMAILS</code> for env-based allowlist fallback.
         </p>
       </section>
-
       <section className="card">
         {signedInEmail ? (
           <>
             <p>Signed in as {signedInEmail}</p>
-            <p>{hasDeveloperAccess ? "Developer access granted." : "Signed in, but this email is not on the developer allowlist."}</p>
             <p>
-              <Link href="/docs">Open docs</Link>
+              Access: {hasAdminAccess ? "Admin" : "No admin"} | {hasMarshalAccess ? "Marshal" : "No marshal"} |{" "}
+              {hasDeveloperAccess ? "Developer" : "No developer"}
+            </p>
+            <p>
+              <Link href="/controller/admin">Admin Console</Link> | <Link href="/controller/marshal">Marshal View</Link> |{" "}
+              <Link href="/docs">Docs</Link>
             </p>
             <button type="button" className="secondary" onClick={() => void signOut()}>
               Sign out
@@ -94,13 +103,13 @@ export default function DeveloperSignInPage() {
           </>
         ) : (
           <form onSubmit={sendMagicLink} className="section-stack">
-            <label htmlFor="devSignInEmail">Developer email</label>
+            <label htmlFor="signInEmail">Email</label>
             <input
-              id="devSignInEmail"
+              id="signInEmail"
               type="email"
               value={email}
               onChange={(eventItem) => setEmail(eventItem.target.value)}
-              placeholder="dev@example.com"
+              placeholder="you@example.com"
             />
             <button type="submit">Send magic link</button>
           </form>

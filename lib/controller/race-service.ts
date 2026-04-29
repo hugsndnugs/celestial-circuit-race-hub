@@ -213,6 +213,23 @@ async function invokeAdminCorrections<T>(payload: object): Promise<T> {
   return parsed.data;
 }
 
+async function invokeAdminRaceOps<T>(payload: object): Promise<T> {
+  const { data, error } = await supabase.functions.invoke("admin-race-ops", {
+    body: payload,
+  });
+  if (error) {
+    const message = await readEdgeFunctionErrorMessage(error as { message: string; context?: Response });
+    throw new Error(message);
+  }
+  if (!data || typeof data !== "object") {
+    throw new Error("Invalid response from admin-race-ops function.");
+  }
+  const parsed = data as { data?: T; error?: string };
+  if (parsed.error) throw new Error(parsed.error);
+  if (!parsed.data) throw new Error("Missing data from admin-race-ops function.");
+  return parsed.data;
+}
+
 async function requireAdminAccess(): Promise<string> {
   return requireAdminUserEmail();
 }
@@ -312,12 +329,24 @@ export async function createRace(input: { name: string; relayPoints: string[] })
   await requireAdminAccess();
   const payload = createRaceSchema.parse(input);
   const code = await allocateRaceCode();
-  const { data, error } = await supabase.rpc("create_race_with_points", {
-    p_name: payload.name,
-    p_code: code,
-    p_relay_points: payload.relayPoints,
+  const data = await invokeAdminRaceOps<{
+    id: string;
+    code: string;
+    name: string;
+    status: "planned" | "active" | "completed";
+    started_at: string | null;
+    ended_at: string | null;
+    status_note: string | null;
+    weather_note: string | null;
+    is_live_override: boolean | null;
+    next_status_eta: string | null;
+    next_status_eta_note: string | null;
+  }>({
+    action: "createRaceWithPoints",
+    name: payload.name,
+    code,
+    relayPoints: payload.relayPoints,
   });
-  if (error || !data) throw new Error(error?.message ?? "Failed to create race.");
   return toRace(data);
 }
 
@@ -553,14 +582,18 @@ export async function approveSignupToRace(input: {
   if (approvedBy !== adminEmail.toLowerCase()) throw new Error("Approver does not match signed-in admin.");
   const race = await resolveRace(input.raceId);
   if (race.status !== "planned") throw new Error("Teams cannot be added after race start.");
-  const teamResponse = await supabase.rpc("approve_signup_to_race_atomic", {
-    p_signup_id: signupId,
-    p_race_id: race.id,
+  const teamResponse = await invokeAdminRaceOps<{
+    id: string;
+    race_id: string;
+    name: string;
+    members: unknown;
+    created_at: string;
+  }>({
+    action: "approveSignupToRaceAtomic",
+    signupId,
+    raceId: race.id,
   });
-  if (teamResponse.error || !teamResponse.data) {
-    throw new Error(teamResponse.error?.message ?? "Failed to approve signup request.");
-  }
-  const teamRow = teamResponse.data as {
+  const teamRow = teamResponse as {
     id: string;
     race_id: string;
     name: string;

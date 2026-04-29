@@ -28,7 +28,8 @@ Optional:
 2. Start race from admin and verify marshal + leaderboard readiness.
 3. During race: marshal taps, monitor leaderboard, log incidents.
 4. Corrections: submit and apply/reject through Edge Function.
-5. Post-race: complete race, export evidence, archive notes.
+5. Admin race setup writes (create race, approve signup) run through `admin-race-ops`.
+6. Post-race: complete race, export evidence, archive notes.
 
 ## Admin Access
 
@@ -39,4 +40,5 @@ Optional:
 ## Data Safety Rules
 
 - Do not bypass correction workflow with direct privileged writes from frontend.
+- Do not call privileged admin RPCs directly from browser clients.
 - RLS violations should trigger incident logging with payload and role context.

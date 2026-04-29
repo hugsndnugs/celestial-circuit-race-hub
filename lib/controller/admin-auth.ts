@@ -3,6 +3,7 @@ import { supabase } from "@/lib/controller/supabase-client";
 const NOT_SIGNED_IN_ERROR = "Sign in required.";
 const NOT_ADMIN_ERROR = "You do not have admin access.";
 const NOT_DEVELOPER_ERROR = "You do not have developer access.";
+const NOT_MARSHAL_ERROR = "You do not have marshal access.";
 
 export interface AdminIdentity {
   email: string;
@@ -50,10 +51,36 @@ function getDeveloperAllowlist(): Set<string> {
   return new Set(emails);
 }
 
+function getMarshalAllowlist(): Set<string> {
+  const raw = process.env.NEXT_PUBLIC_MARSHAL_EMAILS ?? "";
+  const emails = raw
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .map(normalizeEmail);
+  return new Set(emails);
+}
+
 export function isAllowedAdminFromEnv(email: string): boolean {
   const normalized = normalizeEmail(email);
   if (!normalized) return false;
   return getAdminAllowlist().has(normalized);
+}
+
+async function isAllowedMarshalFromSupabase(email: string): Promise<boolean> {
+  const normalized = normalizeEmail(email);
+  if (!normalized) return false;
+
+  const { data, error } = await supabase
+    .from("marshal_users")
+    .select("email")
+    .eq("email", normalized)
+    .eq("is_active", true)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) return false;
+  return Boolean(data?.email);
 }
 
 async function isAllowedAdminFromSupabase(email: string): Promise<boolean> {
@@ -109,6 +136,21 @@ export async function isAllowedDeveloper(email: string): Promise<boolean> {
   if (await isAllowedAdmin(normalized)) return true;
   if (await isAllowedDeveloperFromSupabase(normalized)) return true;
   return isAllowedDeveloperFromEnv(normalized);
+}
+
+export function isAllowedMarshalFromEnv(email: string): boolean {
+  const normalized = normalizeEmail(email);
+  if (!normalized) return false;
+  if (isAllowedAdminFromEnv(normalized)) return true;
+  return getMarshalAllowlist().has(normalized);
+}
+
+export async function isAllowedMarshal(email: string): Promise<boolean> {
+  const normalized = normalizeEmail(email);
+  if (!normalized) return false;
+  if (await isAllowedAdmin(normalized)) return true;
+  if (await isAllowedMarshalFromSupabase(normalized)) return true;
+  return isAllowedMarshalFromEnv(normalized);
 }
 
 export async function getCurrentUserEmail(): Promise<string | null> {
@@ -204,5 +246,11 @@ export async function requireAdminUserEmail(): Promise<string> {
 export async function requireDeveloperUserEmail(): Promise<string> {
   const email = await requireSignedInUserEmail();
   if (!(await isAllowedDeveloper(email))) throw new Error(NOT_DEVELOPER_ERROR);
+  return email;
+}
+
+export async function requireMarshalUserEmail(): Promise<string> {
+  const email = await requireSignedInUserEmail();
+  if (!(await isAllowedMarshal(email))) throw new Error(NOT_MARSHAL_ERROR);
   return email;
 }

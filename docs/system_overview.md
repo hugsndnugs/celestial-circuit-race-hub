@@ -6,7 +6,7 @@ Celestial Circuit is a multi-repository race operations platform.
 
 - `celestial-circuit-race-controller`
   - Race operations UI for admins/marshals and public leaderboard.
-  - Includes Supabase migrations and Edge Functions (`admin-corrections`, `keep-alive`).
+  - Includes Supabase migrations and Edge Functions (`admin-corrections`, `admin-race-ops`, `keep-alive`).
 - `celestial-circuit-race-signups`
   - Public team signup app in `team-signup/`.
   - Includes signup-related migrations and moderation bridge docs.

@@ -11,7 +11,7 @@ export function PublicDocsPlaceholder() {
           This page provides public-facing race guidance while internal engineering documents remain restricted.
         </p>
         <p>
-          Developers can sign in at <Link href="/dev/signin">/dev/signin</Link> to access internal docs.
+          Staff can sign in at <Link href="/signin">/signin</Link> to access role-based internal tools and docs.
         </p>
       </section>
 

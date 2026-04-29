@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { Exo_2, Orbitron } from "next/font/google";
+import { PrimaryNav } from "./PrimaryNav";
 import logo from "./celestial_circuit_logo.png";
 import "./globals.css";
 
@@ -34,10 +35,13 @@ export default function RootLayout({
     <html lang="en" className={`${exo.variable} ${orbitron.variable}`}>
       <body>
         <header className="brand-header">
-          <Link href="/" className="brand-link" aria-label="Open hub home">
-            <Image src={logo} alt="Celestial Circuit logo" className="brand-logo" priority />
-            <span className="brand-name">Celestial Circuit Hub</span>
-          </Link>
+          <div className="brand-header-shell">
+            <Link href="/" className="brand-link" aria-label="Open hub home">
+              <Image src={logo} alt="Celestial Circuit logo" className="brand-logo" priority />
+              <span className="brand-name">Celestial Circuit Hub</span>
+            </Link>
+            <PrimaryNav />
+          </div>
         </header>
         {children}
       </body>

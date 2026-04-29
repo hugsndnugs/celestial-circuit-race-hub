@@ -11,6 +11,7 @@ This document is the consolidated environment variable reference for all
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `race-controller`, `race-signups/team-signup` | Yes | Browser-safe anon key for RLS protected queries |
 | `NEXT_PUBLIC_ADMIN_EMAILS` | `race-controller` | No | Fallback admin allowlist when `admin_users` has no active match |
 | `NEXT_PUBLIC_DEV_EMAILS` | `race-controller` | No | Fallback developer allowlist when `dev_users` has no active match |
+| `NEXT_PUBLIC_MARSHAL_EMAILS` | `race-controller` | No | Fallback marshal allowlist when `marshal_users` has no active match |
 | `NEXT_PUBLIC_DISCORD_PROXY_URL` | `race-controller` | No | Proxy endpoint for optional Discord notifications |
 | `NEXT_PUBLIC_BASE_PATH` | `race-signups/team-signup` | No | Base path for GitHub project Pages hosting |
 | `NEXT_PUBLIC_ASSET_PREFIX` | `race-signups/team-signup` | No | Asset path override for non-standard hosting |
@@ -98,3 +99,42 @@ If `dev_users` has no active match, the app checks `NEXT_PUBLIC_DEV_EMAILS`.
 - Comma-separated list of developer emails.
 - Keep this for emergency/fallback access only.
 - Prefer `dev_users` for normal operations.
+
+## Managing Marshal Access
+
+Marshal controls require authentication and marshal/admin allowlist membership.
+
+### Primary method (database)
+
+Use `public.marshal_users` in Supabase as the source of truth:
+
+- Add an active row for each marshal email.
+- Use lowercase email values.
+- Set `is_active = true` to grant access.
+
+Example:
+
+```sql
+insert into public.marshal_users (email, display_name, is_active)
+values ('marshal@example.com', 'Field Marshal', true)
+on conflict (email)
+do update
+set display_name = excluded.display_name,
+    is_active = excluded.is_active;
+```
+
+To revoke access:
+
+```sql
+update public.marshal_users
+set is_active = false
+where email = 'marshal@example.com';
+```
+
+### Fallback method (environment)
+
+If `marshal_users` has no active match, the app checks `NEXT_PUBLIC_MARSHAL_EMAILS`.
+
+- Comma-separated list of marshal emails.
+- Keep this for emergency/fallback access only.
+- Prefer `marshal_users` for normal operations.

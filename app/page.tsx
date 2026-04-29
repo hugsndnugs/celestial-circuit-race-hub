@@ -1,4 +1,8 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { getCurrentUserEmail, isAllowedAdmin, isAllowedDeveloper } from "@/lib/controller/admin-auth";
 
 type HubTarget = {
   title: string;
@@ -8,12 +12,6 @@ type HubTarget = {
 };
 
 const targets: HubTarget[] = [
-  {
-    title: "Race Controller",
-    description: "Admin, marshal logging, and real-time leaderboard operations.",
-    href: "/controller",
-    cta: "Open race controller",
-  },
   {
     title: "Team Signup",
     description: "Public team registration intake and submission flow.",
@@ -27,12 +25,6 @@ const targets: HubTarget[] = [
     cta: "Open race docs",
   },
   {
-    title: "Developer Sign-In",
-    description: "Internal sign-in for developer docs access without race director controls.",
-    href: "/dev/signin",
-    cta: "Open developer sign-in",
-  },
-  {
     title: "Status",
     description: "System status page and race-day alerts.",
     href: "/status",
@@ -41,6 +33,49 @@ const targets: HubTarget[] = [
 ];
 
 export default function HomePage() {
+  const [isCheckingAccess, setIsCheckingAccess] = useState(true);
+  const [showRaceControllerCard, setShowRaceControllerCard] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function checkControllerAccess() {
+      try {
+        const email = await getCurrentUserEmail();
+        if (!email) {
+          if (!isMounted) return;
+          setShowRaceControllerCard(false);
+          return;
+        }
+        const [adminAllowed, developerAllowed] = await Promise.all([isAllowedAdmin(email), isAllowedDeveloper(email)]);
+        if (!isMounted) return;
+        setShowRaceControllerCard(adminAllowed || developerAllowed);
+      } catch {
+        if (!isMounted) return;
+        setShowRaceControllerCard(false);
+      } finally {
+        if (!isMounted) return;
+        setIsCheckingAccess(false);
+      }
+    }
+    void checkControllerAccess();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const visibleTargets = useMemo(() => {
+    if (!showRaceControllerCard) return targets;
+    return [
+      {
+        title: "Race Controller",
+        description: "Admin, marshal logging, and real-time leaderboard operations.",
+        href: "/controller",
+        cta: "Open race controller",
+      },
+      ...targets,
+    ];
+  }, [showRaceControllerCard]);
+
   return (
     <main>
       <section className="card hero">
@@ -52,7 +87,7 @@ export default function HomePage() {
       </section>
 
       <section className="grid" aria-label="Hub destinations">
-        {targets.map((target) => (
+        {(isCheckingAccess ? targets : visibleTargets).map((target) => (
           <article key={target.title} className="card">
             <h2>{target.title}</h2>
             <p className="muted">{target.description}</p>
@@ -62,6 +97,11 @@ export default function HomePage() {
           </article>
         ))}
       </section>
+      <footer className="footer">
+        <p>
+          Staff access: <Link href="/signin">Sign in</Link>
+        </p>
+      </footer>
     </main>
   );
 }

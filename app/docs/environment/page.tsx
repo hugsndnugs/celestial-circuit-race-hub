@@ -18,13 +18,20 @@ export default function EnvironmentPage() {
         <ul>
           <li>`NEXT_PUBLIC_ADMIN_EMAILS` (optional fallback allowlist).</li>
           <li>`NEXT_PUBLIC_DEV_EMAILS` (optional fallback developer allowlist).</li>
+          <li>`NEXT_PUBLIC_MARSHAL_EMAILS` (optional fallback marshal allowlist).</li>
           <li>`NEXT_PUBLIC_DISCORD_PROXY_URL` (optional external notification bridge).</li>
         </ul>
         <h2>Adding Developers</h2>
         <ul>
           <li>Primary source: `dev_users` table in Supabase (`is_active = true`).</li>
           <li>Fallback source: `NEXT_PUBLIC_DEV_EMAILS` in `.env.local`.</li>
-          <li>Developers sign in at `/dev/signin` and then open `/docs`.</li>
+          <li>Team members sign in at `/signin` and then open the route for their role.</li>
+        </ul>
+        <h2>Adding Marshals</h2>
+        <ul>
+          <li>Primary source: `marshal_users` table in Supabase (`is_active = true`).</li>
+          <li>Fallback source: `NEXT_PUBLIC_MARSHAL_EMAILS` in `.env.local`.</li>
+          <li>Marshals must be signed in to use `/controller/marshal`.</li>
         </ul>
         <h2>Signups Variables</h2>
         <ul>

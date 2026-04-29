@@ -45,6 +45,7 @@ This runbook defines race-day operations across:
 ## Correction and Data Integrity
 
 - Correction writes must be done through `admin-corrections` Edge Function.
+- Race creation and signup-approval writes must be done through `admin-race-ops` Edge Function.
 - Do not issue privileged correction/audit writes directly from browser clients.
 - For RLS insert errors:
   - Confirm target table and role (`anon`, `authenticated`, `service-role`).
