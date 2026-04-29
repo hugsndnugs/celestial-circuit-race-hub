@@ -12,7 +12,6 @@ export default function SignupsPage() {
         </section>
         <SignupForm />
       </main>
-      <footer className="signup-footer">Celestial Circuit - public team registration intake.</footer>
     </div>
   );
 }
