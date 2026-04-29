@@ -1,9 +1,10 @@
 import Link from "next/link";
+import type { ReactElement } from "react";
 
 type FooterLink = {
   href: string;
   label: string;
-  icon: JSX.Element;
+  icon: ReactElement;
   external?: boolean;
 };
 
