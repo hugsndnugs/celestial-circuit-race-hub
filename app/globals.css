@@ -458,16 +458,91 @@ a.button-link[aria-disabled="true"] {
   color: #ffffff;
 }
 
-.footer {
-  margin-top: 1.4rem;
-  font-size: 0.88rem;
-  color: rgba(232, 237, 242, 0.62);
+.site-footer {
+  margin-top: 1.6rem;
+  border-top: 1px solid var(--cc-border);
+  background:
+    linear-gradient(180deg, rgba(16, 23, 34, 0.65), rgba(14, 17, 22, 0.95)),
+    var(--cc-bg);
+}
+
+.site-footer-shell {
+  max-width: var(--page-max-width);
+  margin: 0 auto;
+  padding: var(--space-md) var(--page-pad-x) var(--space-lg);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.site-footer-copy {
+  margin: 0;
+  font-size: 0.86rem;
+  color: rgba(232, 237, 242, 0.7);
+}
+
+.site-footer-links {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.site-footer-icon-link {
+  width: 2.1rem;
+  height: 2.1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid var(--cc-border);
+  color: rgba(232, 237, 242, 0.9);
+  text-decoration: none;
+  background: rgba(21, 26, 33, 0.75);
+  transition: border-color 120ms ease-in-out, background-color 120ms ease-in-out, color 120ms ease-in-out;
+}
+
+.site-footer-icon-link svg {
+  width: 1.1rem;
+  height: 1.1rem;
+  display: block;
+}
+
+.site-footer-icon-link-discord {
+  transform: translateY(1px);
+}
+
+.site-footer-icon-link:hover {
+  border-color: #3a5370;
+  background: #1b2635;
+  color: #ffffff;
+}
+
+.site-footer-icon-link:focus-visible {
+  outline: 2px solid rgba(25, 113, 255, 0.65);
+  outline-offset: 2px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .signup-shell {
   min-height: 100vh;
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto 1fr;
   gap: var(--space-2xl);
 }
 
@@ -518,14 +593,6 @@ a.button-link[aria-disabled="true"] {
   font-size: 0.9rem;
 }
 
-.signup-footer {
-  margin: 0 auto;
-  max-width: 48rem;
-  text-align: center;
-  font-size: 0.75rem;
-  color: rgba(232, 237, 242, 0.5);
-}
-
 @media (max-width: 840px) {
   .brand-header-shell {
     padding: var(--space-md) 1rem var(--space-sm);
@@ -554,6 +621,11 @@ a.button-link[aria-disabled="true"] {
 
   .signup-shell {
     gap: var(--space-xl);
+  }
+
+  .site-footer-shell {
+    padding: var(--space-sm) 1rem var(--space-md);
+    justify-content: center;
   }
 
   .signup-title {
