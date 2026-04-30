@@ -81,8 +81,8 @@ export default function UnifiedSignInPage() {
         <h1>Sign In</h1>
         <p className="muted">Centralized sign-in for admin, marshal, and developer access.</p>
         <p>
-          Configure <code>NEXT_PUBLIC_ADMIN_EMAILS</code>, <code>NEXT_PUBLIC_DEV_EMAILS</code>, and{" "}
-          <code>NEXT_PUBLIC_MARSHAL_EMAILS</code> for env-based allowlist fallback.
+          Authorization is Supabase-first. Optional env fallback is available via <code>NEXT_PUBLIC_ADMIN_EMAILS</code>,{" "}
+          <code>NEXT_PUBLIC_DEV_EMAILS</code>, and <code>NEXT_PUBLIC_MARSHAL_EMAILS</code>.
         </p>
       </section>
       <section className="card">
