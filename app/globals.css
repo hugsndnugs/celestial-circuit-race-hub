@@ -45,6 +45,22 @@ body {
   background: var(--cc-bg);
 }
 
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: var(--space-md);
+  z-index: 1000;
+  background: var(--cc-primary);
+  color: #fff;
+  padding: var(--space-xs) var(--space-md);
+  border-radius: var(--control-radius);
+  text-decoration: none;
+}
+
+.skip-link:focus {
+  top: var(--space-md);
+}
+
 main {
   max-width: var(--page-max-width);
   margin: 0 auto;
@@ -376,6 +392,18 @@ a.cc-link.secondary {
   margin: var(--space-2xs) 0 var(--space-lg);
   font-size: 1rem;
   font-family: inherit;
+}
+
+.card table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.card th,
+.card td {
+  text-align: left;
+  padding: var(--space-xs);
+  border-bottom: 1px solid var(--cc-border);
 }
 
 .card textarea {

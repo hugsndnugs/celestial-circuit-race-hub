@@ -9,9 +9,10 @@ This document is the consolidated environment variable reference for all
 | --- | --- | --- | --- |
 | `NEXT_PUBLIC_SUPABASE_URL` | `race-controller`, `race-signups/team-signup` | Yes | Browser-safe Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `race-controller`, `race-signups/team-signup` | Yes | Browser-safe anon key for RLS protected queries |
-| `NEXT_PUBLIC_ADMIN_EMAILS` | `race-controller` | No | Fallback admin allowlist when `admin_users` has no active match |
-| `NEXT_PUBLIC_DEV_EMAILS` | `race-controller` | No | Fallback developer allowlist when `dev_users` has no active match |
-| `NEXT_PUBLIC_MARSHAL_EMAILS` | `race-controller` | No | Fallback marshal allowlist when `marshal_users` has no active match |
+| `NEXT_PUBLIC_ADMIN_EMAILS` | `race-controller` | No | Development-only fallback admin allowlist (disabled in production unless explicitly enabled) |
+| `NEXT_PUBLIC_DEV_EMAILS` | `race-controller` | No | Development-only fallback developer allowlist (disabled in production unless explicitly enabled) |
+| `NEXT_PUBLIC_MARSHAL_EMAILS` | `race-controller` | No | Development-only fallback marshal allowlist (disabled in production unless explicitly enabled) |
+| `NEXT_PUBLIC_ALLOW_ENV_ROLE_FALLBACK` | `race-controller` | No | Set to `true` to allow public env role fallbacks in production (default is fail-closed) |
 | `NEXT_PUBLIC_DISCORD_PROXY_URL` | `race-controller` | No | Proxy endpoint for optional Discord notifications |
 | `NEXT_PUBLIC_BASE_PATH` | `race-signups/team-signup` | No | Base path for GitHub project Pages hosting |
 | `NEXT_PUBLIC_ASSET_PREFIX` | `race-signups/team-signup` | No | Asset path override for non-standard hosting |
@@ -94,10 +95,11 @@ where email = 'dev@example.com';
 
 ### Fallback method (environment)
 
-If `dev_users` has no active match, the app checks `NEXT_PUBLIC_DEV_EMAILS`.
+If `dev_users` has no active match, the app can check `NEXT_PUBLIC_DEV_EMAILS` only when env fallback is enabled.
 
 - Comma-separated list of developer emails.
 - Keep this for emergency/fallback access only.
+- In production, this is disabled unless `NEXT_PUBLIC_ALLOW_ENV_ROLE_FALLBACK=true`.
 - Prefer `dev_users` for normal operations.
 
 ## Managing Marshal Access
@@ -133,8 +135,9 @@ where email = 'marshal@example.com';
 
 ### Fallback method (environment)
 
-If `marshal_users` has no active match, the app checks `NEXT_PUBLIC_MARSHAL_EMAILS`.
+If `marshal_users` has no active match, the app can check `NEXT_PUBLIC_MARSHAL_EMAILS` only when env fallback is enabled.
 
 - Comma-separated list of marshal emails.
 - Keep this for emergency/fallback access only.
+- In production, this is disabled unless `NEXT_PUBLIC_ALLOW_ENV_ROLE_FALLBACK=true`.
 - Prefer `marshal_users` for normal operations.

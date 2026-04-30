@@ -43,6 +43,9 @@ const RACE_CODE_WORDS = [
   "nebula",
 ];
 
+const LEADERBOARD_CACHE_TTL_MS = 3000;
+const leaderboardCache = new Map<string, { expiresAt: number; rows: LeaderboardRow[] }>();
+
 function toRace(row: {
   id: string;
   code: string;
@@ -551,12 +554,19 @@ export async function addCorrection(input: {
 
 export async function getLeaderboard(raceRef: string): Promise<LeaderboardRow[]> {
   const race = await resolveRace(raceRef);
+  const cached = leaderboardCache.get(race.id);
+  const now = Date.now();
+  if (cached && cached.expiresAt > now) {
+    return cached.rows;
+  }
   const [teams, relayPoints, relayEvents] = await Promise.all([
     getTeamsByRace(race.id),
     getRelayPointsByRace(race.id),
     getRelayEventsByRace(race.id),
   ]);
-  return computeLeaderboard({ race, teams, relayPoints, relayEvents });
+  const rows = computeLeaderboard({ race, teams, relayPoints, relayEvents });
+  leaderboardCache.set(race.id, { rows, expiresAt: now + LEADERBOARD_CACHE_TTL_MS });
+  return rows;
 }
 
 export async function getPendingSignupRequests(): Promise<SignupRequest[]> {
@@ -632,13 +642,19 @@ export async function bulkModerateSignupRequests(input: {
   reason: string;
   approvedBy: string;
 }): Promise<SignupRequest[]> {
+  const uniqueSignupIds = [...new Set(input.signupIds.map((signupId) => signupId.trim()).filter(Boolean))];
+  const maxConcurrency = 5;
   const results: SignupRequest[] = [];
-  for (const signupId of input.signupIds) {
-    if (input.action === "spam") {
-      results.push(await markSignupAsSpam({ signupId, reason: input.reason, approvedBy: input.approvedBy }));
-    } else {
-      results.push(await rejectSignupRequest({ signupId, reason: input.reason, approvedBy: input.approvedBy }));
-    }
+  for (let index = 0; index < uniqueSignupIds.length; index += maxConcurrency) {
+    const chunk = uniqueSignupIds.slice(index, index + maxConcurrency);
+    const chunkResults = await Promise.all(
+      chunk.map((signupId) =>
+        input.action === "spam"
+          ? markSignupAsSpam({ signupId, reason: input.reason, approvedBy: input.approvedBy })
+          : rejectSignupRequest({ signupId, reason: input.reason, approvedBy: input.approvedBy })
+      )
+    );
+    results.push(...chunkResults);
   }
   return results;
 }

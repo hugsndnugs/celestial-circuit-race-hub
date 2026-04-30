@@ -196,7 +196,7 @@ export default function MarshalPage() {
         ))}
       </section>
       <section className="card">
-        <p>{message}</p>
+        <p role="status" aria-live="polite">{message}</p>
         <p>Offline queue: {offlineCount}</p>
         <button type="button" className="secondary" onClick={() => void syncOfflineQueue()} disabled={!raceRef || offlineCount === 0}>
           Sync queue

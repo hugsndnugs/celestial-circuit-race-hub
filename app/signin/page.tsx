@@ -114,7 +114,7 @@ export default function UnifiedSignInPage() {
             <button type="submit">Send magic link</button>
           </form>
         )}
-        <p>{status}</p>
+        <p role="status" aria-live="polite">{status}</p>
       </section>
     </main>
   );

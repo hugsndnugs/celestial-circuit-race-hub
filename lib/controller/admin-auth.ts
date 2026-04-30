@@ -19,6 +19,10 @@ function normalizeDisplayName(value: string | null | undefined): string | null {
   return trimmed || null;
 }
 
+function allowPublicRoleFallback(): boolean {
+  return process.env.NODE_ENV !== "production" || process.env.NEXT_PUBLIC_ALLOW_ENV_ROLE_FALLBACK === "true";
+}
+
 function fallbackDisplayNameFromEmail(email: string): string {
   const localPart = email.split("@")[0] ?? email;
   const words = localPart
@@ -62,6 +66,7 @@ function getMarshalAllowlist(): Set<string> {
 }
 
 export function isAllowedAdminFromEnv(email: string): boolean {
+  if (!allowPublicRoleFallback()) return false;
   const normalized = normalizeEmail(email);
   if (!normalized) return false;
   return getAdminAllowlist().has(normalized);
@@ -124,6 +129,7 @@ export async function isAllowedAdmin(email: string): Promise<boolean> {
 }
 
 export function isAllowedDeveloperFromEnv(email: string): boolean {
+  if (!allowPublicRoleFallback()) return false;
   const normalized = normalizeEmail(email);
   if (!normalized) return false;
   if (isAllowedAdminFromEnv(normalized)) return true;
@@ -139,6 +145,7 @@ export async function isAllowedDeveloper(email: string): Promise<boolean> {
 }
 
 export function isAllowedMarshalFromEnv(email: string): boolean {
+  if (!allowPublicRoleFallback()) return false;
   const normalized = normalizeEmail(email);
   if (!normalized) return false;
   if (isAllowedAdminFromEnv(normalized)) return true;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   approveSignupToRace,
   bulkModerateSignupRequests,
@@ -31,6 +31,13 @@ import { getSupabaseBrowser } from "@/lib/signups/supabaseBrowser";
 import { correctionsToCsv, incidentsToCsv, leaderboardToCsv, relayEventsToCsv } from "@/lib/controller/evidence-export";
 import { downloadTextFile } from "@/lib/controller/download";
 import { CorrectionRequest, Race, RaceIncidentNote, RelayEvent, RelayPoint, SignupRequest, Team } from "@/lib/controller/types";
+
+type ConfirmAction = "startRace" | "completeRace";
+type ReasonAction =
+  | { kind: "rejectSignup"; signup: SignupRequest }
+  | { kind: "spamSignup"; signup: SignupRequest }
+  | { kind: "bulkModeration"; action: "reject" | "spam" }
+  | { kind: "rejectCorrection"; requestId: string };
 
 function getMetadataName(metadata: Record<string, unknown> | undefined): string | null {
   const raceDirectorName = metadata?.race_director_name;
@@ -83,6 +90,9 @@ export default function AdminPage() {
   const [signupRaceSelections, setSignupRaceSelections] = useState<Record<string, string>>({});
   const [signupActionLoadingId, setSignupActionLoadingId] = useState<string | null>(null);
   const [selectedSignupIds, setSelectedSignupIds] = useState<string[]>([]);
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
+  const [reasonAction, setReasonAction] = useState<ReasonAction | null>(null);
+  const [reasonInput, setReasonInput] = useState("");
   const [status, setStatus] = useState(
     supabase
       ? "Ready"
@@ -92,6 +102,8 @@ export default function AdminPage() {
     typeof globalThis.location === "undefined"
       ? ""
       : `${globalThis.location.origin}${globalThis.location.pathname}`;
+  const raceRefreshTimerRef = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null);
+  const queueRefreshTimerRef = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null);
 
   useEffect(() => {
     if (!supabase) return;
@@ -232,6 +244,30 @@ export default function AdminPage() {
     }
   }
 
+  const scheduleRaceContextRefresh = useCallback((reference: string, delayMs = 400) => {
+    if (!reference) return;
+    if (raceRefreshTimerRef.current !== null) globalThis.clearTimeout(raceRefreshTimerRef.current);
+    raceRefreshTimerRef.current = globalThis.setTimeout(() => {
+      void refreshRaceContext(reference);
+      raceRefreshTimerRef.current = null;
+    }, delayMs);
+  }, []);
+
+  const scheduleRacesRefresh = useCallback((delayMs = 400) => {
+    if (queueRefreshTimerRef.current !== null) globalThis.clearTimeout(queueRefreshTimerRef.current);
+    queueRefreshTimerRef.current = globalThis.setTimeout(() => {
+      void refreshRaces();
+      queueRefreshTimerRef.current = null;
+    }, delayMs);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (raceRefreshTimerRef.current !== null) globalThis.clearTimeout(raceRefreshTimerRef.current);
+      if (queueRefreshTimerRef.current !== null) globalThis.clearTimeout(queueRefreshTimerRef.current);
+    };
+  }, []);
+
   const selectedRace = useMemo(
     () => races.find((race) => race.code === raceRef || race.id === raceRef) ?? null,
     [raceRef, races]
@@ -320,22 +356,22 @@ export default function AdminPage() {
     const channel = supabase
       .channel(`admin-live:${selectedRace.id}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "relay_events", filter: `race_id=eq.${selectedRace.id}` }, () => {
-        void refreshRaceContext(selectedRace.code);
+        scheduleRaceContextRefresh(selectedRace.code);
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "correction_requests", filter: `race_id=eq.${selectedRace.id}` }, () => {
-        void refreshRaceContext(selectedRace.code);
+        scheduleRaceContextRefresh(selectedRace.code);
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "race_incident_notes", filter: `race_id=eq.${selectedRace.id}` }, () => {
-        void refreshRaceContext(selectedRace.code);
+        scheduleRaceContextRefresh(selectedRace.code);
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "team_signup_requests" }, () => {
-        void refreshRaces();
+        scheduleRacesRefresh();
       })
       .subscribe();
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [selectedRace?.id, selectedRace?.code, supabase]);
+  }, [scheduleRaceContextRefresh, scheduleRacesRefresh, selectedRace?.id, selectedRace?.code, supabase]);
 
   async function handleCreateRace(event: { preventDefault: () => void }) {
     event.preventDefault();
@@ -371,8 +407,6 @@ export default function AdminPage() {
 
   async function startRace() {
     if (!selectedRace) return;
-    const confirmed = globalThis.confirm(`Start race "${selectedRace.name}" (${selectedRace.code}) now?`);
-    if (!confirmed) return;
     try {
       const race = await startRaceRecord(raceRef);
       await refreshRaces();
@@ -386,8 +420,6 @@ export default function AdminPage() {
 
   async function completeRace() {
     if (!selectedRace) return;
-    const confirmed = globalThis.confirm(`Complete race "${selectedRace.name}" (${selectedRace.code}) now?`);
-    if (!confirmed) return;
     try {
       const race = await completeRaceRecord(raceRef);
       await refreshRaces();
@@ -440,8 +472,6 @@ export default function AdminPage() {
 
   async function submitCorrectionRequest(event: { preventDefault: () => void }) {
     event.preventDefault();
-    const confirmed = globalThis.confirm("Submit correction request to triage queue?");
-    if (!confirmed) return;
     if (!correctionTarget) return;
     const effectiveAt = correctionEffectiveAtIso ?? correctionTarget.recordedAt;
     try {
@@ -499,7 +529,7 @@ export default function AdminPage() {
   async function rejectRequest(requestId: string) {
     try {
       if (!authIdentity?.email) throw new Error("Sign in required.");
-      await rejectCorrectionRequest(requestId, "Rejected during triage review.");
+      await rejectCorrectionRequest(requestId, reasonInput.trim());
       await refreshRaceContext(raceRef);
       setStatus(`Correction rejected: ${requestId}`);
     } catch (error) {
@@ -552,8 +582,7 @@ export default function AdminPage() {
   }
 
   async function rejectSignup(signup: SignupRequest) {
-    const reason = globalThis.prompt("Reason for rejection", "Duplicate or invalid signup.");
-    if (reason === null) return;
+    const reason = reasonInput.trim();
     if (!reason.trim()) {
       setStatus("Rejection reason is required.");
       return;
@@ -577,8 +606,8 @@ export default function AdminPage() {
   }
 
   async function markSignupSpam(signup: SignupRequest) {
-    const reason = globalThis.prompt("Reason for spam", "Spam or abuse.");
-    if (reason === null || !reason.trim()) return;
+    const reason = reasonInput.trim();
+    if (!reason.trim()) return;
     try {
       if (!authIdentity?.email) throw new Error("Sign in required.");
       setSignupActionLoadingId(signup.id);
@@ -602,8 +631,8 @@ export default function AdminPage() {
       setStatus("Select at least one signup for bulk moderation.");
       return;
     }
-    const reason = globalThis.prompt(`Reason for bulk ${action}`, action === "spam" ? "Spam or abuse." : "Invalid or duplicate signup.");
-    if (reason === null || !reason.trim()) return;
+    const reason = reasonInput.trim();
+    if (!reason.trim()) return;
     try {
       if (!authIdentity?.email) throw new Error("Sign in required.");
       await bulkModerateSignupRequests({
@@ -664,6 +693,43 @@ export default function AdminPage() {
       console.error("Failed to save incident note", error);
       setStatus("Failed to save incident note.");
     }
+  }
+
+  function openConfirmDialog(action: ConfirmAction) {
+    setConfirmAction(action);
+  }
+
+  function openReasonDialog(action: ReasonAction, defaultReason: string) {
+    setReasonAction(action);
+    setReasonInput(defaultReason);
+  }
+
+  async function submitConfirmAction() {
+    if (confirmAction === "startRace") {
+      await startRace();
+    } else if (confirmAction === "completeRace") {
+      await completeRace();
+    }
+    setConfirmAction(null);
+  }
+
+  async function submitReasonAction() {
+    if (!reasonAction) return;
+    if (!reasonInput.trim()) {
+      setStatus("Reason is required.");
+      return;
+    }
+    if (reasonAction.kind === "rejectSignup") {
+      await rejectSignup(reasonAction.signup);
+    } else if (reasonAction.kind === "spamSignup") {
+      await markSignupSpam(reasonAction.signup);
+    } else if (reasonAction.kind === "bulkModeration") {
+      await runBulkSignupModeration(reasonAction.action);
+    } else {
+      await rejectRequest(reasonAction.requestId);
+    }
+    setReasonAction(null);
+    setReasonInput("");
   }
 
   const signedInLabel = getSignedInLabel(authIdentity);
@@ -757,10 +823,22 @@ export default function AdminPage() {
         <h2>Pending Signup Queue</h2>
         <p>Review incoming signups and assign them to a planned race.</p>
         <div className="admin-actions">
-          <button type="button" className="secondary" onClick={() => void runBulkSignupModeration("reject")} disabled={selectedSignupIds.length === 0}>
+          <button
+            type="button"
+            className="secondary"
+            onClick={() =>
+              openReasonDialog({ kind: "bulkModeration", action: "reject" }, "Invalid or duplicate signup.")
+            }
+            disabled={selectedSignupIds.length === 0}
+          >
             Bulk reject selected
           </button>
-          <button type="button" className="secondary" onClick={() => void runBulkSignupModeration("spam")} disabled={selectedSignupIds.length === 0}>
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => openReasonDialog({ kind: "bulkModeration", action: "spam" }, "Spam or abuse.")}
+            disabled={selectedSignupIds.length === 0}
+          >
             Bulk mark spam
           </button>
         </div>
@@ -819,7 +897,9 @@ export default function AdminPage() {
                     <button
                       type="button"
                       className="secondary"
-                      onClick={() => void rejectSignup(signup)}
+                      onClick={() =>
+                        openReasonDialog({ kind: "rejectSignup", signup }, "Rejected during admin moderation review.")
+                      }
                       disabled={isBusy}
                     >
                       Reject
@@ -827,7 +907,7 @@ export default function AdminPage() {
                     <button
                       type="button"
                       className="secondary"
-                      onClick={() => void markSignupSpam(signup)}
+                      onClick={() => openReasonDialog({ kind: "spamSignup", signup }, "Spam or abuse.")}
                       disabled={isBusy}
                     >
                       Mark spam
@@ -897,10 +977,10 @@ export default function AdminPage() {
       <section className="card admin-card">
         <h2>Race Lifecycle</h2>
         <div className="admin-actions">
-          <button type="button" onClick={startRace} disabled={!raceRef || selectedRace?.status !== "planned"}>
+          <button type="button" onClick={() => openConfirmDialog("startRace")} disabled={!raceRef || selectedRace?.status !== "planned"}>
             Start race
           </button>
-          <button type="button" className="secondary" onClick={completeRace} disabled={!raceRef || selectedRace?.status !== "active"}>
+          <button type="button" className="secondary" onClick={() => openConfirmDialog("completeRace")} disabled={!raceRef || selectedRace?.status !== "active"}>
             Complete race
           </button>
         </div>
@@ -1092,7 +1172,13 @@ export default function AdminPage() {
                     <button type="button" className="secondary" onClick={() => void approveRequest(requestItem.id)}>
                       Apply
                     </button>
-                    <button type="button" className="secondary" onClick={() => void rejectRequest(requestItem.id)}>
+                    <button
+                      type="button"
+                      className="secondary"
+                      onClick={() =>
+                        openReasonDialog({ kind: "rejectCorrection", requestId: requestItem.id }, "Rejected during triage review.")
+                      }
+                    >
                       Reject
                     </button>
                   </div>
@@ -1161,7 +1247,54 @@ export default function AdminPage() {
         )}
       </section>
 
-      <p>{status}</p>
+      {confirmAction ? (
+        <section className="card admin-card" role="dialog" aria-modal="true" aria-label="Confirm race action">
+          <h2>Confirm action</h2>
+          <p>
+            {confirmAction === "startRace"
+              ? `Start race "${selectedRace?.name ?? raceRef}" now?`
+              : `Complete race "${selectedRace?.name ?? raceRef}" now?`}
+          </p>
+          <div className="admin-actions">
+            <button type="button" onClick={() => void submitConfirmAction()}>
+              Confirm
+            </button>
+            <button type="button" className="secondary" onClick={() => setConfirmAction(null)}>
+              Cancel
+            </button>
+          </div>
+        </section>
+      ) : null}
+
+      {reasonAction ? (
+        <section className="card admin-card" role="dialog" aria-modal="true" aria-label="Provide moderation reason">
+          <h2>Reason required</h2>
+          <label htmlFor="reasonDialogInput">Reason</label>
+          <textarea
+            id="reasonDialogInput"
+            value={reasonInput}
+            onChange={(eventItem) => setReasonInput(eventItem.target.value)}
+            rows={3}
+          />
+          <div className="admin-actions">
+            <button type="button" onClick={() => void submitReasonAction()}>
+              Confirm
+            </button>
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => {
+                setReasonAction(null);
+                setReasonInput("");
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </section>
+      ) : null}
+
+      <p role="status" aria-live="polite">{status}</p>
         </>
       ) : null}
     </main>

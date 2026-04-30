@@ -20,15 +20,35 @@ interface CorrectionRequestRow {
 }
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": "null",
   "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-function json(data: unknown, status = 200): Response {
+function getAllowedOrigin(request: Request): string | null {
+  const configuredOrigins = (Deno.env.get("ALLOWED_ORIGINS") ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (configuredOrigins.length === 0) return null;
+  const origin = request.headers.get("origin");
+  if (!origin) return null;
+  return configuredOrigins.includes(origin) ? origin : null;
+}
+
+function corsHeadersFor(request: Request): HeadersInit {
+  const origin = getAllowedOrigin(request);
+  return {
+    ...corsHeaders,
+    "Access-Control-Allow-Origin": origin ?? "null",
+    Vary: "Origin",
+  };
+}
+
+function json(request: Request, data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { "Content-Type": "application/json", ...corsHeaders }
+    headers: { "Content-Type": "application/json", ...corsHeadersFor(request) }
   });
 }
 
@@ -109,22 +129,49 @@ async function notifyDiscord(message: string): Promise<{ ok: boolean; error?: st
 
 Deno.serve(async (request: Request) => {
   if (request.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return new Response("ok", { headers: corsHeadersFor(request) });
   }
 
   if (request.method !== "POST") {
-    return json({ error: "Method not allowed" }, 405);
+    return json(request, { error: "Method not allowed" }, 405);
   }
 
   const supabaseUrl = Deno.env.get("NEXT_PUBLIC_SUPABASE_URL");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!supabaseUrl || !serviceRoleKey) {
-    return json({ error: "Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY." }, 500);
+  const anonKey = Deno.env.get("NEXT_PUBLIC_SUPABASE_ANON_KEY");
+  if (!supabaseUrl || !serviceRoleKey || !anonKey) {
+    return json(request, { error: "Missing NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, or SUPABASE_SERVICE_ROLE_KEY." }, 500);
   }
+
+  const authorization = request.headers.get("Authorization");
+  if (!authorization?.startsWith("Bearer ")) {
+    return json(request, { error: "Missing bearer token." }, 401);
+  }
+
+  const userClient = createClient(supabaseUrl, anonKey, {
+    global: { headers: { Authorization: authorization } },
+    auth: { autoRefreshToken: false, persistSession: false }
+  });
+  const userResponse = await userClient.auth.getUser();
+  const user = userResponse.data.user;
+  if (userResponse.error || !user?.email) {
+    return json(request, { error: "Unauthorized user." }, 401);
+  }
+  const reviewerEmail = user.email.toLowerCase();
 
   const supabase = createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false }
   });
+  const adminCheck = await supabase
+    .from("admin_users")
+    .select("email")
+    .eq("email", reviewerEmail)
+    .eq("is_active", true)
+    .limit(1)
+    .maybeSingle();
+  if (adminCheck.error || !adminCheck.data) {
+    return json(request, { error: "Admin access required." }, 403);
+  }
 
   try {
     const payload = (await request.json()) as Record<string, unknown>;
@@ -165,20 +212,19 @@ Deno.serve(async (request: Request) => {
         )
         .single<CorrectionRequestRow>();
       if (insert.error || !insert.data) {
-        return json({ error: insert.error?.message ?? "Failed to create correction request." }, 400);
+        return json(request, { error: insert.error?.message ?? "Failed to create correction request." }, 400);
       }
 
       await recordOutboxEvent(supabase, insert.data.race_id, insert.data.id, "correction_requested", {
         requestId: insert.data.id,
         supersedesEventId
       });
-      return json({ data: mapRequest(insert.data) });
+      return json(request, { data: mapRequest(insert.data) });
     }
 
     if (action === "review") {
-      const { requestId, reviewedBy, reviewAction, reviewNotes } = payload as {
+      const { requestId, reviewAction, reviewNotes } = payload as {
         requestId: string;
-        reviewedBy: string;
         reviewAction: "approve" | "reject";
         reviewNotes?: string;
       };
@@ -190,11 +236,11 @@ Deno.serve(async (request: Request) => {
         .eq("id", requestId)
         .single<CorrectionRequestRow>();
       if (requestResponse.error || !requestResponse.data) {
-        return json({ error: "Correction request not found." }, 404);
+        return json(request, { error: "Correction request not found." }, 404);
       }
       const requestRow = requestResponse.data;
       if (requestRow.status !== "pending") {
-        return json({ error: `Request is already ${requestRow.status}.` }, 400);
+        return json(request, { error: `Request is already ${requestRow.status}.` }, 400);
       }
 
       if (reviewAction === "reject") {
@@ -203,7 +249,7 @@ Deno.serve(async (request: Request) => {
           .from("correction_requests")
           .update({
             status: "rejected",
-            reviewed_by: reviewedBy,
+            reviewed_by: reviewerEmail,
             reviewed_at: rejectedAt,
             review_notes: reviewNotes?.trim() || null
           })
@@ -213,106 +259,41 @@ Deno.serve(async (request: Request) => {
           )
           .single<CorrectionRequestRow>();
         if (update.error || !update.data) {
-          return json({ error: update.error?.message ?? "Failed to reject request." }, 400);
+          return json(request, { error: update.error?.message ?? "Failed to reject request." }, 400);
         }
-        await recordAuditEntry(supabase, requestRow.race_id, requestRow.id, reviewedBy, "correction_rejected", {
+        await recordAuditEntry(supabase, requestRow.race_id, requestRow.id, reviewerEmail, "correction_rejected", {
           reviewNotes: reviewNotes ?? null
         });
         await recordOutboxEvent(supabase, requestRow.race_id, requestRow.id, "correction_rejected", {
           requestId: requestRow.id
         });
-        return json({ data: mapRequest(update.data) });
+        return json(request, { data: mapRequest(update.data) });
       }
 
-      const sourceResponse = await supabase
-        .from("relay_events")
-        .select("id, race_id, team_id, relay_point_id, invalidated_by_event_id")
-        .eq("id", requestRow.supersedes_event_id)
-        .single<{
-          id: string;
-          race_id: string;
-          team_id: string;
-          relay_point_id: string;
-          invalidated_by_event_id: string | null;
-        }>();
-      if (sourceResponse.error || !sourceResponse.data) {
-        return json({ error: "Superseded event not found." }, 404);
+      const applyResponse = await supabase.rpc("apply_correction_request_atomic", {
+        p_request_id: requestRow.id,
+        p_reviewed_by: reviewerEmail,
+        p_review_notes: reviewNotes?.trim() || null,
+      });
+      if (applyResponse.error || !applyResponse.data) {
+        return json(request, { error: applyResponse.error?.message ?? "Failed to apply correction request." }, 400);
       }
-      if (sourceResponse.data.invalidated_by_event_id) {
-        return json({ error: "Superseded event is already invalidated." }, 400);
+      const requestUpdate = applyResponse.data as CorrectionRequestRow;
+      const appliedEventId = requestUpdate.applied_event_id;
+      if (!appliedEventId) {
+        return json(request, { error: "Correction applied without resulting event." }, 400);
       }
 
-      const correctionInsert = await supabase
-        .from("relay_events")
-        .insert([
-          {
-            race_id: sourceResponse.data.race_id,
-            team_id: sourceResponse.data.team_id,
-            relay_point_id: sourceResponse.data.relay_point_id,
-            recorded_by: reviewedBy,
-            source: "admin_correction",
-            supersedes_event_id: sourceResponse.data.id,
-            correction_reason: requestRow.reason,
-            invalidated_by_event_id: null,
-            effective_recorded_at: requestRow.effective_recorded_at
-          }
-        ])
-        .select("id")
-        .single<{ id: string }>();
-      if (correctionInsert.error || !correctionInsert.data) {
-        return json({ error: correctionInsert.error?.message ?? "Failed to insert correction event." }, 400);
-      }
-
-      const invalidation = await supabase
-        .from("relay_events")
-        .update({ invalidated_by_event_id: correctionInsert.data.id })
-        .eq("id", sourceResponse.data.id)
-        .is("invalidated_by_event_id", null);
-      if (invalidation.error) {
-        await supabase
-          .from("correction_requests")
-          .update({
-            status: "failed",
-            reviewed_by: reviewedBy,
-            reviewed_at: new Date().toISOString(),
-            review_notes: "Failed to invalidate superseded event after correction insert."
-          })
-          .eq("id", requestRow.id);
-        await recordOutboxEvent(supabase, requestRow.race_id, requestRow.id, "correction_failed", {
-          requestId: requestRow.id,
-          reason: invalidation.error.message
-        });
-        return json({ error: invalidation.error.message }, 400);
-      }
-
-      const requestUpdate = await supabase
-        .from("correction_requests")
-        .update({
-          status: "applied",
-          reviewed_by: reviewedBy,
-          reviewed_at: new Date().toISOString(),
-          review_notes: reviewNotes?.trim() || null,
-          applied_event_id: correctionInsert.data.id
-        })
-        .eq("id", requestRow.id)
-        .select(
-          "id, race_id, supersedes_event_id, requested_by, reason, status, submitted_at, effective_recorded_at, reviewed_by, reviewed_at, review_notes, applied_event_id, idempotency_key"
-        )
-        .single<CorrectionRequestRow>();
-      if (requestUpdate.error || !requestUpdate.data) {
-        return json({ error: requestUpdate.error?.message ?? "Failed to finalize request." }, 400);
-      }
-
-      await recordAuditEntry(supabase, requestRow.race_id, requestRow.id, reviewedBy, "correction_applied", {
-        appliedEventId: correctionInsert.data.id
+      await recordAuditEntry(supabase, requestRow.race_id, requestRow.id, reviewerEmail, "correction_applied", {
+        appliedEventId
       });
       await recordOutboxEvent(supabase, requestRow.race_id, requestRow.id, "correction_applied", {
         requestId: requestRow.id,
-        appliedEventId: correctionInsert.data.id
+        appliedEventId
       });
 
       const notifyResult = await notifyDiscord(
-        `Correction applied: race=${requestRow.race_id} request=${requestRow.id} event=${correctionInsert.data.id}`
+        `Correction applied: race=${requestRow.race_id} request=${requestRow.id} event=${appliedEventId}`
       );
       await supabase
         .from("notification_outbox")
@@ -326,11 +307,11 @@ Deno.serve(async (request: Request) => {
         .eq("correction_request_id", requestRow.id)
         .is("sent_at", null);
 
-      return json({ data: mapRequest(requestUpdate.data) });
+      return json(request, { data: mapRequest(requestUpdate) });
     }
 
-    return json({ error: "Unsupported action." }, 400);
+    return json(request, { error: "Unsupported action." }, 400);
   } catch (error) {
-    return json({ error: error instanceof Error ? error.message : "Unknown admin correction error." }, 400);
+    return json(request, { error: error instanceof Error ? error.message : "Unknown admin correction error." }, 400);
   }
 });

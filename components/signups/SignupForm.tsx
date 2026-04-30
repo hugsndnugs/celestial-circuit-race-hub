@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import type { SyntheticEvent } from "react";
 import { getSupabaseBrowser } from "@/lib/signups/supabaseBrowser";
 import { canSubmitNow, markSubmittedNow, msUntilNextSubmit } from "@/lib/signups/throttle";
@@ -14,6 +14,7 @@ export function SignupForm() {
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
   const [configError, setConfigError] = useState<string | null>(null);
+  const errorSummaryRef = useRef<HTMLDivElement | null>(null);
   const initial = useMemo(
     () => ({
       team_name: "",
@@ -47,6 +48,9 @@ export function SignupForm() {
       });
       if (!parsed.ok) {
         setErrors(parsed.errors);
+        globalThis.setTimeout(() => {
+          errorSummaryRef.current?.focus();
+        }, 0);
         return;
       }
       const supabase = getSupabaseBrowser();
@@ -103,7 +107,11 @@ export function SignupForm() {
         Register with your team name and Discord mentions. An email is optional if you want a non-Discord fallback for organizers.
       </p>
       {configError ? <p className="cc-error">{configError}</p> : null}
-      {errors._form ? <p className="cc-error">{errors._form}</p> : null}
+      {errors._form ? (
+        <div ref={errorSummaryRef} tabIndex={-1} role="alert" aria-live="assertive">
+          <p className="cc-error">{errors._form}</p>
+        </div>
+      ) : null}
       <div>
         <label className="cc-label" htmlFor="team_name">
           Team name

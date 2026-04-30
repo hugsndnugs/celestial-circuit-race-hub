@@ -35,6 +35,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${exo.variable} ${orbitron.variable}`}>
       <body>
+        <a href="#main-content" className="skip-link">Skip to main content</a>
         <header className="brand-header">
           <div className="brand-header-shell">
             <Link href="/" className="brand-link" aria-label="Open hub home">
@@ -44,7 +45,7 @@ export default function RootLayout({
             <PrimaryNav />
           </div>
         </header>
-        {children}
+        <div id="main-content">{children}</div>
         <SiteFooter />
       </body>
     </html>

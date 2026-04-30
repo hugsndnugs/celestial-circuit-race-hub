@@ -24,9 +24,10 @@ export default function LeaderboardPage() {
   useEffect(() => {
     const supabase = getSupabaseBrowser();
     if (!supabase || !raceRef.trim()) return;
+    const normalizedRace = raceRef.trim();
     const channel = supabase
-      .channel(`leaderboard:${raceRef}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "relay_events" }, () => {
+      .channel(`leaderboard:${normalizedRace}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "relay_events", filter: `race_id=eq.${normalizedRace}` }, () => {
         void refresh();
       })
       .subscribe();
@@ -51,17 +52,28 @@ export default function LeaderboardPage() {
         {rows.length === 0 ? (
           <p>No standings yet.</p>
         ) : (
-          <ol>
-            {rows.map((row) => (
-              <li key={row.teamId}>
-                {row.teamName} - relay points: {row.completedRelayPoints} - elapsed: {row.elapsedSeconds ?? "n/a"}s
-              </li>
-            ))}
-          </ol>
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Team</th>
+                <th scope="col">Relay Points</th>
+                <th scope="col">Elapsed (s)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.teamId}>
+                  <td>{row.teamName}</td>
+                  <td>{row.completedRelayPoints}</td>
+                  <td>{row.elapsedSeconds ?? "n/a"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
       </section>
-      <section className="card">
-        <p>{message}</p>
+      <section className="card" aria-live="polite">
+        <output>{message}</output>
       </section>
     </main>
   );
