@@ -3,7 +3,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 let client: SupabaseClient | null | undefined;
 
 export function getSupabaseBrowser(): SupabaseClient | null {
-  if (typeof window === "undefined") return null;
+  if (globalThis.window === undefined) return null;
   if (client !== undefined) return client;
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -13,8 +13,8 @@ export function getSupabaseBrowser(): SupabaseClient | null {
   }
   client = createClient(url, anonKey, {
     auth: {
-      persistSession: false,
-      autoRefreshToken: false,
+      persistSession: true,
+      autoRefreshToken: true,
     },
   });
   return client;
