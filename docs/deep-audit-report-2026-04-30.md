@@ -7,89 +7,67 @@
 - Frontend usability/a11y: core flows and interaction quality.
 
 ## Runtime Validation Performed
-- `npm test` passed: 5 tests.
+- `npm test` passed: 7 tests.
 - `npm run lint` passed.
 - `npm run typecheck` passed.
 
 ## Severity-Ranked Findings
 
-### Critical
-1. Legacy permissive RLS appears in migration history and can be dangerous with environment drift.
-   - Evidence: `using (true)` and `with check (true)` patterns in early policies.
-   - Files:
-     - `supabase/migrations/002_static_browser_rls.sql`
-     - `supabase/migrations/006_authenticated_browser_rls.sql`
-   - Risk: accidental broad read/write if migration order/state diverges between environments.
-
-### High
-2. Public env allowlist fallback for privileged roles can grant access by deployment misconfiguration.
-   - Files: `lib/controller/admin-auth.ts`, `docs/environment.md`.
-   - Risk: privilege assignments are partly controlled by public env variables.
-
-3. Edge Functions handling admin operations use wildcard CORS.
+### Resolved
+1. Public env allowlist fallback for privileged roles now fails closed in production unless explicitly enabled.
+   - Files: `lib/controller/admin-auth.ts`, `docs/environment.md`
+2. Edge Functions for admin operations no longer use wildcard CORS and now enforce explicit origin allowlisting.
    - Files:
      - `supabase/functions/admin-race-ops/index.ts`
      - `supabase/functions/admin-corrections/index.ts`
-   - Evidence: `Access-Control-Allow-Origin: "*"`
-   - Risk: broader cross-origin attack surface than needed.
-
-4. Admin correction function uses service role client without explicit caller JWT validation.
+3. Admin correction function now validates caller JWT and derives reviewer identity server-side.
    - File: `supabase/functions/admin-corrections/index.ts`
-   - Risk: this endpoint performs privileged writes and accepts actor fields from request payload.
-
-5. Realtime refresh fan-out creates multiplicative load under race activity.
+4. Correction apply path is now atomic via database RPC.
+   - Files:
+     - `supabase/migrations/024_atomic_correction_apply.sql`
+     - `supabase/functions/admin-corrections/index.ts`
+5. Realtime fan-out has been reduced through race-scoped subscriptions and debounced refreshes.
    - Files:
      - `app/controller/admin/page.tsx`
      - `app/controller/leaderboard/page.tsx`
-     - `lib/controller/race-service.ts`
-   - Risk: event storms trigger full refetch/recompute per connected client.
-
-6. Test coverage is very narrow and CI does not run tests.
+6. CI now runs tests before build/deploy.
+   - File: `.github/workflows/deploy-pages.yml`
+7. Race timeline/correction/incident read paths now have explicit composite indexes.
+   - File: `supabase/migrations/023_security_and_perf_hardening.sql`
+8. Bulk moderation is no longer strictly sequential.
+   - File: `lib/controller/race-service.ts` (`bulkModerateSignupRequests`)
+9. Frontend async status/error handling now includes live announcements and improved UX for failed submit paths.
    - Files:
-     - `tests/ranking.test.ts`
-     - `tests/validation.test.ts`
-     - `.github/workflows/deploy-pages.yml`
-   - Risk: regressions in auth, RLS assumptions, edge workflows, and UI flows are not gated.
-
-### Medium
-7. Signup abuse throttling is client-side only (`sessionStorage`) and bypassable.
-   - Files: `lib/signups/throttle.ts`, `components/signups/SignupForm.tsx`.
-
-8. Timeline query patterns likely need explicit composite indexes for growth.
-   - Files:
-     - `lib/controller/race-service.ts`
-     - `supabase/migrations/001_race_control_schema.sql`
-   - Risk: slower reads on `relay_events`, `correction_requests`, `race_incident_notes` as volume grows.
-
-9. Correction application path is multi-step and non-transactional in function code.
-   - File: `supabase/functions/admin-corrections/index.ts`
-   - Risk: partial state if a mid-sequence step fails.
-
-10. Bulk moderation is strictly sequential.
-    - File: `lib/controller/race-service.ts` (`bulkModerateSignupRequests`)
-    - Risk: operator latency increases linearly with selected item count.
-
-11. Frontend status/error announcements are mostly plain text without live regions.
-    - Files:
-      - `components/signups/SignupForm.tsx`
-      - `app/signin/page.tsx`
-      - `app/controller/admin/page.tsx`
-      - `app/controller/marshal/page.tsx`
-    - Risk: weaker feedback for screen-reader users and keyboard-first workflows.
-
-12. Several heavy workflows rely on `prompt`/`confirm`.
+     - `components/signups/SignupForm.tsx`
+     - `app/signin/page.tsx`
+     - `app/controller/admin/page.tsx`
+     - `app/controller/marshal/page.tsx`
+10. `prompt`/`confirm`-style heavy workflows were replaced with explicit accessible dialog flows.
     - File: `app/controller/admin/page.tsx`
-    - Risk: weak UX consistency and limited validation/error affordance.
-
-13. No explicit app-level security headers configured.
+11. Baseline app-level security headers are now configured.
     - File: `next.config.ts`
-    - Risk: missing baseline hardening (CSP/frame/referrer/permissions policy).
+12. Keyboard skip-link and semantic leaderboard table are in place.
+    - Files:
+      - `app/layout.tsx`
+      - `app/controller/leaderboard/page.tsx`
+
+### Remaining Risks
+1. Legacy permissive RLS exists in historical migrations and can still cause risk under environment drift.
+   - Files:
+     - `supabase/migrations/002_static_browser_rls.sql`
+     - `supabase/migrations/006_authenticated_browser_rls.sql`
+   - Note: forward cleanup migration introduced (`023`), but deployed environment state still needs verification.
+2. Signup abuse throttling remains primarily client-side and bypassable.
+   - Files: `lib/signups/throttle.ts`, `components/signups/SignupForm.tsx`
+3. High-priority integration/contract/smoke tests remain incomplete.
+   - See Test Coverage Assessment below.
 
 ## Test Coverage Assessment
-- Current tests only cover:
+- Current tests cover:
   - leaderboard ranking logic
   - signup payload validation
-- Missing high-priority coverage:
+  - admin env-fallback fail-closed behavior
+- Remaining high-priority coverage gaps:
   - Authz matrix (`admin`, `dev`, `marshal`, unauthenticated) in `lib/controller/admin-auth.ts`
   - Service-layer state transitions in `lib/controller/race-service.ts`
   - Edge function contracts and failure paths in:
@@ -97,28 +75,28 @@
     - `supabase/functions/admin-corrections/index.ts`
   - UI behavior and accessibility checks for critical routes:
     - `/signups`, `/signin`, `/controller/admin`, `/controller/marshal`, `/leaderboard`, `/status`
-- CI gap:
-  - `.github/workflows/deploy-pages.yml` runs lint/typecheck/build, but not tests.
+- CI status:
+  - `.github/workflows/deploy-pages.yml` now runs lint/typecheck/test prior to build.
 
 ## Scalability Risk Summary
-- Highest amplification paths:
-  - Admin page refetches multiple datasets per event.
-  - Leaderboard page subscribes to all `relay_events` changes and refreshes full leaderboard.
-  - `getLeaderboard` performs full race reads + in-memory recompute.
-- Operational hotspots:
+- Mitigated amplification paths:
+  - Admin realtime refreshes are debounced and race-scoped.
+  - Leaderboard subscriptions are race-scoped.
+  - `getLeaderboard` now has short-lived caching to reduce repeated recompute/refetch pressure.
+- Remaining hotspots:
   - `markRelayPass` duplicate handling with concurrent retries.
-  - Sequential moderation and queue sync loops.
-  - No cache/aggregation layer between clients and Supabase for high-frequency read traffic.
+  - Offline marshal queue sync remains sequential.
+  - No durable server-side aggregation tier between clients and Supabase for very high-frequency read traffic.
 
 ## Frontend Usability/A11y Summary
 - Positive:
-  - Basic labels exist, focus ring styling exists, semantic landmarks are present.
-- Main gaps:
-  - Missing `aria-live`/`role=alert` for async status and validation feedback.
-  - No structured error summary/focus management after failed submit.
-  - List-based leaderboard presentation is less scannable than a semantic table.
-  - No skip-link for keyboard users.
-  - Potential contrast risk in muted/helper/error colors against dark background.
+  - Basic labels and focus-ring styling remain present.
+  - Async status messaging now uses live announcements in key routes.
+  - Signup validation now includes focused error summary behavior.
+  - Leaderboard now uses semantic table markup.
+  - Skip-link added for keyboard-first navigation.
+- Remaining gap:
+  - Potential contrast risk in muted/helper/error colors against dark background should still be explicitly validated against WCAG AA.
 
 ## Prioritized Remediation Plan
 1. Security hardening first
@@ -147,24 +125,24 @@
 
 ## Verification Checklist
 - Security
-  - [ ] No permissive unintended RLS policies active in target environments.
-  - [ ] Edge Functions reject unauthorized users and only accept approved origins.
-  - [ ] Privileged role fallback behavior is explicit and safe per environment.
-  - [ ] Security headers are present on deployed pages.
+  - [ ] No permissive unintended RLS policies active in target environments (requires DB/state audit in each deployed env).
+  - [x] Edge Functions reject unauthorized users and only accept approved origins.
+  - [x] Privileged role fallback behavior is explicit and safe per environment.
+  - [x] Security headers are present in app config (`next.config.ts`); verify on deployed response headers.
 
 - Scalability
-  - [ ] Realtime updates are race-scoped and do not trigger unrelated refreshes.
-  - [ ] Query plans for race timeline endpoints use indexes under load.
-  - [ ] Leaderboard/admin refresh paths avoid full data reload where unnecessary.
+  - [x] Realtime updates are race-scoped and avoid unrelated refreshes in admin/leaderboard flows.
+  - [ ] Query plans for race timeline endpoints use indexes under load (needs EXPLAIN/production-like load validation).
+  - [x] Leaderboard/admin refresh paths now reduce unnecessary full reloads in primary flows.
 
 - Tests and CI
-  - [ ] CI runs tests on every change path (push/PR).
+  - [x] CI runs tests on every change path (push/PR).
   - [ ] Integration tests cover core race lifecycle and moderation flows.
-  - [ ] Security regression tests cover role/access boundaries.
+  - [ ] Security regression tests fully cover role/access boundaries.
   - [ ] Route-level smoke tests exist for major user flows.
 
 - Usability/A11y
-  - [ ] Async status/errors are announced via live regions.
-  - [ ] Keyboard-only operation succeeds across major forms/actions.
-  - [ ] Color contrast passes WCAG AA for text and controls.
-  - [ ] Critical routes pass automated accessibility checks.
+  - [x] Async status/errors are announced via live regions in key routes.
+  - [x] Keyboard-only operation improved with skip-link and explicit dialog actions.
+  - [ ] Color contrast passes WCAG AA for text and controls (needs explicit audit).
+  - [ ] Critical routes pass automated accessibility checks (axe/Playwright not yet wired).
