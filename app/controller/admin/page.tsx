@@ -31,6 +31,13 @@ import { getSupabaseBrowser } from "@/lib/signups/supabaseBrowser";
 import { correctionsToCsv, incidentsToCsv, leaderboardToCsv, relayEventsToCsv } from "@/lib/controller/evidence-export";
 import { downloadTextFile } from "@/lib/controller/download";
 import { CorrectionRequest, Race, RaceIncidentNote, RelayEvent, RelayPoint, SignupRequest, Team } from "@/lib/controller/types";
+import {
+  defaultHomepageSettings,
+  loadHomepageSettings,
+  saveHomepageSettings,
+  type HomepageSettings,
+  type HomepageSlide,
+} from "@/lib/homepage-settings";
 
 type ConfirmAction = "startRace" | "completeRace";
 type ReasonAction =
@@ -38,6 +45,16 @@ type ReasonAction =
   | { kind: "spamSignup"; signup: SignupRequest }
   | { kind: "bulkModeration"; action: "reject" | "spam" }
   | { kind: "rejectCorrection"; requestId: string };
+
+const createHomepageSlide = (): HomepageSettings["slides"][number] => ({
+  id: typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `${Date.now()}`,
+  title: "",
+  caption: "",
+  imageUrl: "",
+  altText: "",
+  ctaLabel: "",
+  ctaHref: "",
+});
 
 function getMetadataName(metadata: Record<string, unknown> | undefined): string | null {
   const raceDirectorName = metadata?.race_director_name;
@@ -57,6 +74,9 @@ export default function AdminPage() {
   const [profileDisplayName, setProfileDisplayName] = useState("");
   const [profileSaving, setProfileSaving] = useState(false);
   const [accessAllowed, setAccessAllowed] = useState(false);
+  const [homepageSettings, setHomepageSettings] = useState<HomepageSettings>(defaultHomepageSettings);
+  const [homepageSettingsLoading, setHomepageSettingsLoading] = useState(false);
+  const [homepageSettingsSaving, setHomepageSettingsSaving] = useState(false);
   const [raceName, setRaceName] = useState("Celestial Relay Alpha");
   const [relayPointsText, setRelayPointsText] = useState("Start\nOrbital Ring\nOutpost\nFinish");
   const [raceRef, setRaceRef] = useState("");
@@ -148,6 +168,30 @@ export default function AdminPage() {
       data.subscription.unsubscribe();
     };
   }, [supabase]);
+
+  useEffect(() => {
+    if (!accessAllowed) return;
+    let isMounted = true;
+    async function loadSettings() {
+      try {
+        setHomepageSettingsLoading(true);
+        const settings = await loadHomepageSettings();
+        if (!isMounted) return;
+        setHomepageSettings(settings);
+      } catch (error) {
+        console.error("Failed to load homepage settings", error);
+        if (!isMounted) return;
+        setStatus("Unable to load homepage settings.");
+      } finally {
+        if (!isMounted) return;
+        setHomepageSettingsLoading(false);
+      }
+    }
+    void loadSettings();
+    return () => {
+      isMounted = false;
+    };
+  }, [accessAllowed]);
 
   async function sendMagicLink(event: { preventDefault: () => void }) {
     event.preventDefault();
@@ -514,6 +558,48 @@ export default function AdminPage() {
     return source === "admin_correction" ? "Admin correction" : "Marshal pass";
   }
 
+  function updateHomepageField<K extends keyof Omit<HomepageSettings, "slides">>(field: K, value: HomepageSettings[K]) {
+    setHomepageSettings((previous) => ({ ...previous, [field]: value }));
+  }
+
+  function updateHomepageSlide(index: number, field: keyof HomepageSlide, value: string) {
+    setHomepageSettings((previous) => ({
+      ...previous,
+      slides: previous.slides.map((slide, slideIndex) =>
+        slideIndex === index ? { ...slide, [field]: value } : slide
+      ),
+    }));
+  }
+
+  function addHomepageSlide() {
+    setHomepageSettings((previous) => ({
+      ...previous,
+      slides: [...previous.slides, createHomepageSlide()].slice(0, 8),
+    }));
+  }
+
+  function removeHomepageSlide(index: number) {
+    setHomepageSettings((previous) => {
+      const nextSlides = previous.slides.filter((_slide, slideIndex) => slideIndex !== index);
+      return { ...previous, slides: nextSlides.length > 0 ? nextSlides : [createHomepageSlide()] };
+    });
+  }
+
+  async function submitHomepageSettings(event: { preventDefault: () => void }) {
+    event.preventDefault();
+    try {
+      setHomepageSettingsSaving(true);
+      const saved = await saveHomepageSettings(homepageSettings);
+      setHomepageSettings(saved);
+      setStatus("Homepage settings saved.");
+    } catch (error) {
+      console.error("Failed to save homepage settings", error);
+      setStatus(error instanceof Error ? error.message : "Failed to save homepage settings.");
+    } finally {
+      setHomepageSettingsSaving(false);
+    }
+  }
+
   async function approveRequest(requestId: string) {
     try {
       if (!authIdentity?.email) throw new Error("Sign in required.");
@@ -788,6 +874,156 @@ export default function AdminPage() {
       {!authLoading && !accessAllowed ? <p>{status}</p> : null}
       {accessAllowed ? (
         <>
+
+      <section className="card admin-card">
+        <h2>Homepage Content</h2>
+        <p className="muted">
+          Choose the public homepage copy, feature images, and how often the image slot rotates.
+          Use approved public image URLs from your media host or Supabase storage.
+        </p>
+        <form className="admin-form" onSubmit={submitHomepageSettings}>
+          <label htmlFor="homepageEyebrow">Eyebrow</label>
+          <input
+            id="homepageEyebrow"
+            value={homepageSettings.eyebrow}
+            onChange={(eventItem) => updateHomepageField("eyebrow", eventItem.target.value)}
+            placeholder="Celestial Circuit"
+          />
+          <label htmlFor="homepageHeadline">Headline</label>
+          <input
+            id="homepageHeadline"
+            value={homepageSettings.headline}
+            onChange={(eventItem) => updateHomepageField("headline", eventItem.target.value)}
+            placeholder="Race-day tools, team registration, and live operations in one orbit."
+          />
+          <label htmlFor="homepageIntro">Intro copy</label>
+          <textarea
+            id="homepageIntro"
+            value={homepageSettings.intro}
+            onChange={(eventItem) => updateHomepageField("intro", eventItem.target.value)}
+            rows={3}
+          />
+          <div className="admin-form-grid">
+            <div>
+              <label htmlFor="homepagePrimaryCtaLabel">Primary CTA label</label>
+              <input
+                id="homepagePrimaryCtaLabel"
+                value={homepageSettings.primaryCtaLabel}
+                onChange={(eventItem) => updateHomepageField("primaryCtaLabel", eventItem.target.value)}
+              />
+            </div>
+            <div>
+              <label htmlFor="homepagePrimaryCtaHref">Primary CTA link</label>
+              <input
+                id="homepagePrimaryCtaHref"
+                value={homepageSettings.primaryCtaHref}
+                onChange={(eventItem) => updateHomepageField("primaryCtaHref", eventItem.target.value)}
+                placeholder="/signups"
+              />
+            </div>
+            <div>
+              <label htmlFor="homepageSecondaryCtaLabel">Secondary CTA label</label>
+              <input
+                id="homepageSecondaryCtaLabel"
+                value={homepageSettings.secondaryCtaLabel}
+                onChange={(eventItem) => updateHomepageField("secondaryCtaLabel", eventItem.target.value)}
+              />
+            </div>
+            <div>
+              <label htmlFor="homepageSecondaryCtaHref">Secondary CTA link</label>
+              <input
+                id="homepageSecondaryCtaHref"
+                value={homepageSettings.secondaryCtaHref}
+                onChange={(eventItem) => updateHomepageField("secondaryCtaHref", eventItem.target.value)}
+                placeholder="/docs"
+              />
+            </div>
+          </div>
+          <label htmlFor="homepageRotationInterval">Rotation interval in seconds</label>
+          <input
+            id="homepageRotationInterval"
+            type="number"
+            min={3}
+            max={120}
+            value={homepageSettings.rotationIntervalSeconds}
+            onChange={(eventItem) =>
+              updateHomepageField("rotationIntervalSeconds", Number.parseInt(eventItem.target.value, 10) || 8)
+            }
+          />
+          <div className="admin-actions">
+            <button type="button" className="secondary" onClick={addHomepageSlide} disabled={homepageSettings.slides.length >= 8}>
+              Add image slot
+            </button>
+            <button type="button" className="secondary" onClick={() => setHomepageSettings(defaultHomepageSettings)}>
+              Reset to defaults
+            </button>
+          </div>
+          <div className="admin-list">
+            {homepageSettings.slides.map((slide, index) => (
+              <fieldset key={slide.id} className="admin-list-item">
+                <legend>Slide {index + 1}</legend>
+                <label htmlFor={`homepageSlideTitle-${slide.id}`}>Slide title</label>
+                <input
+                  id={`homepageSlideTitle-${slide.id}`}
+                  value={slide.title}
+                  onChange={(eventItem) => updateHomepageSlide(index, "title", eventItem.target.value)}
+                  placeholder="Showcase race-day moments"
+                />
+                <label htmlFor={`homepageSlideCaption-${slide.id}`}>Caption</label>
+                <textarea
+                  id={`homepageSlideCaption-${slide.id}`}
+                  value={slide.caption}
+                  onChange={(eventItem) => updateHomepageSlide(index, "caption", eventItem.target.value)}
+                  rows={2}
+                />
+                <label htmlFor={`homepageSlideImage-${slide.id}`}>Image URL</label>
+                <input
+                  id={`homepageSlideImage-${slide.id}`}
+                  value={slide.imageUrl}
+                  onChange={(eventItem) => updateHomepageSlide(index, "imageUrl", eventItem.target.value)}
+                  placeholder="https://..."
+                />
+                <label htmlFor={`homepageSlideAlt-${slide.id}`}>Image alt text</label>
+                <input
+                  id={`homepageSlideAlt-${slide.id}`}
+                  value={slide.altText}
+                  onChange={(eventItem) => updateHomepageSlide(index, "altText", eventItem.target.value)}
+                />
+                <div className="admin-form-grid">
+                  <div>
+                    <label htmlFor={`homepageSlideCtaLabel-${slide.id}`}>Slide CTA label</label>
+                    <input
+                      id={`homepageSlideCtaLabel-${slide.id}`}
+                      value={slide.ctaLabel}
+                      onChange={(eventItem) => updateHomepageSlide(index, "ctaLabel", eventItem.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor={`homepageSlideCtaHref-${slide.id}`}>Slide CTA link</label>
+                    <input
+                      id={`homepageSlideCtaHref-${slide.id}`}
+                      value={slide.ctaHref}
+                      onChange={(eventItem) => updateHomepageSlide(index, "ctaHref", eventItem.target.value)}
+                      placeholder="/status"
+                    />
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => removeHomepageSlide(index)}
+                  disabled={homepageSettings.slides.length <= 1}
+                >
+                  Remove slide
+                </button>
+              </fieldset>
+            ))}
+          </div>
+          <button type="submit" disabled={homepageSettingsSaving || homepageSettingsLoading}>
+            {homepageSettingsSaving ? "Saving homepage..." : "Save homepage content"}
+          </button>
+        </form>
+      </section>
 
       <section className="card admin-card">
         <h2>Race Finder</h2>
