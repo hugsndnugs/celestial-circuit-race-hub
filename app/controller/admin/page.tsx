@@ -848,7 +848,7 @@ export default function AdminPage() {
             </button>
             {!accessAllowed ? (
               <p>
-                Access denied. Add this email to <code>NEXT_PUBLIC_ADMIN_EMAILS</code> to unlock admin controls.
+                Access denied. You do not have this role.
               </p>
             ) : null}
           </>
