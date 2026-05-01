@@ -1,0 +1,140 @@
+name: PR Checks
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-checks-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyZWYiOiJleGFtcGxlIiwicm9sZSI6ImFub24ifQ.signature
+        run: npm run build
+
+  build:
+    runs-on: ubuntu-latest
+    needs: ci
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Resolve public Supabase env
+        run: |
+          SUPABASE_URL="${{ vars.NEXT_PUBLIC_SUPABASE_URL }}"
+          SUPABASE_ANON_KEY="${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}"
+
+          if [ -z "$SUPABASE_URL" ]; then
+            SUPABASE_URL="${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}"
+          fi
+          if [ -z "$SUPABASE_ANON_KEY" ]; then
+            SUPABASE_ANON_KEY="${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}"
+          fi
+          if [ -z "$SUPABASE_URL" ]; then
+            SUPABASE_URL="https://example.supabase.co"
+          fi
+          if [ -z "$SUPABASE_ANON_KEY" ]; then
+            SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyZWYiOiJleGFtcGxlIiwicm9sZSI6ImFub24ifQ.signature"
+          fi
+
+          echo "NEXT_PUBLIC_SUPABASE_URL=$SUPABASE_URL" >> "$GITHUB_ENV"
+          echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY" >> "$GITHUB_ENV"
+
+      - name: Configure deploy path mode
+        run: |
+          echo "NEXT_PUBLIC_BASE_PATH=/" >> "$GITHUB_ENV"
+          echo "Using custom-domain-root mode."
+
+      - name: Validate required build environment
+        run: |
+          if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || [ -z "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ]; then
+            echo "Missing required build env vars: NEXT_PUBLIC_SUPABASE_URL and/or NEXT_PUBLIC_SUPABASE_ANON_KEY."
+            echo "Set them in GitHub repository or environment Variables, or provide matching Secrets."
+            exit 1
+          fi
+          node -e "
+            try {
+              const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+              const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
+              const hostRef = new URL(url).hostname.split('.')[0] ?? '';
+              const parts = key.split('.');
+              if (parts.length < 2) throw new Error('Anon key is not a JWT.');
+              const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+              const keyRef = typeof payload.ref === 'string' ? payload.ref : '';
+              if (!hostRef || !keyRef || hostRef !== keyRef) {
+                throw new Error('Supabase URL project ref does not match anon key ref.');
+              }
+            } catch (error) {
+              console.error(String(error instanceof Error ? error.message : error));
+              process.exit(1);
+            }
+          "
+
+      - name: Build static export
+        run: npm run build
+
+  finalize:
+    runs-on: ubuntu-latest
+    needs:
+      - ci
+      - build
+    if: ${{ always() }}
+    steps:
+      - name: Report job results
+        run: |
+          echo "ci=${{ needs.ci.result }}"
+          echo "build=${{ needs.build.result }}"
+          {
+            echo "### PR check results"
+            echo ""
+            echo "- CI: ${{ needs.ci.result }}"
+            echo "- Build: ${{ needs.build.result }}"
+            echo ""
+            echo "This workflow mirrors pre-deploy checks from \`deploy-pages.yml\` without deploying."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail if checks did not succeed
+        if: ${{ needs.ci.result != 'success' || needs.build.result != 'success' }}
+        run: |
+          echo "Failing workflow because CI and/or build did not succeed."
+          exit 1
