@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   defaultHomepageSettings,
   saveHomepageSettings,
@@ -32,9 +32,15 @@ export function HomepageAdminPanel({ settings, onSettingsSaved }: HomepageAdminP
   const [isSaving, setIsSaving] = useState(false);
   const [status, setStatus] = useState("Homepage settings ready.");
 
-  useEffect(() => {
-    if (!isOpen) setDraftSettings(settings);
-  }, [isOpen, settings]);
+  function handleTogglePanel() {
+    setDraftSettings(settings);
+    setIsOpen((current) => !current);
+  }
+
+  function handleClosePanel() {
+    setDraftSettings(settings);
+    setIsOpen(false);
+  }
 
   function updateHomepageField<K extends keyof Omit<HomepageSettings, "slides">>(field: K, value: HomepageSettings[K]) {
     setDraftSettings((previous) => ({ ...previous, [field]: value }));
@@ -86,7 +92,7 @@ export function HomepageAdminPanel({ settings, onSettingsSaved }: HomepageAdminP
         className="home-admin-cog"
         aria-label="Open homepage admin settings"
         aria-expanded={isOpen}
-        onClick={() => setIsOpen((current) => !current)}
+        onClick={handleTogglePanel}
       >
         <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
           <path
@@ -105,7 +111,7 @@ export function HomepageAdminPanel({ settings, onSettingsSaved }: HomepageAdminP
                 Choose the public homepage copy, feature images, and how often the image slot rotates.
               </p>
             </div>
-            <button type="button" className="secondary" onClick={() => setIsOpen(false)}>
+            <button type="button" className="secondary" onClick={handleClosePanel}>
               Close
             </button>
           </div>
