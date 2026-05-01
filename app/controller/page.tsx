@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { getCurrentUserEmail, isAllowedAdmin, isAllowedDeveloper } from "@/lib/controller/admin-auth";
+import { getCurrentUserEmail, isAllowedRaceControl } from "@/lib/controller/admin-auth";
 
 export default function ControllerHomePage() {
   const [isCheckingAccess, setIsCheckingAccess] = useState(true);
@@ -20,9 +20,9 @@ export default function ControllerHomePage() {
           setHasControllerAccess(false);
           return;
         }
-        const [adminAllowed, developerAllowed] = await Promise.all([isAllowedAdmin(email), isAllowedDeveloper(email)]);
+        const raceControlAllowed = await isAllowedRaceControl(email);
         if (!isMounted) return;
-        setHasControllerAccess(adminAllowed || developerAllowed);
+        setHasControllerAccess(raceControlAllowed);
       } catch {
         if (!isMounted) return;
         setHasControllerAccess(false);

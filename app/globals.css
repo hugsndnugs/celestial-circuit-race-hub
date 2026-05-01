@@ -219,8 +219,50 @@ main {
 }
 
 .home-main {
+  position: relative;
   display: grid;
   gap: var(--space-2xl);
+}
+
+.home-admin-cog {
+  position: absolute;
+  top: 0;
+  right: var(--page-pad-x);
+  z-index: 5;
+  width: 2.6rem;
+  height: 2.6rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(141, 184, 255, 0.58);
+  border-radius: 999px;
+  background: rgba(13, 18, 25, 0.88);
+  color: #e8edf2;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+}
+
+.home-admin-cog svg {
+  width: 1.35rem;
+  height: 1.35rem;
+  display: block;
+}
+
+.home-admin-cog:hover {
+  border-color: #8db8ff;
+  background: #1b2635;
+}
+
+.home-admin-panel {
+  margin-top: 3rem;
+}
+
+.home-admin-panel-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-md);
 }
 
 .home-hero {

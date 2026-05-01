@@ -4,6 +4,7 @@ const NOT_SIGNED_IN_ERROR = "Sign in required.";
 const NOT_ADMIN_ERROR = "You do not have admin access.";
 const NOT_DEVELOPER_ERROR = "You do not have developer access.";
 const NOT_MARSHAL_ERROR = "You do not have marshal access.";
+const NOT_RACE_CONTROL_ERROR = "You do not have race control access.";
 
 export interface AdminIdentity {
   email: string;
@@ -55,6 +56,16 @@ function getDeveloperAllowlist(): Set<string> {
   return new Set(emails);
 }
 
+function getRaceControlAllowlist(): Set<string> {
+  const raw = process.env.NEXT_PUBLIC_RACECONTROL_EMAILS ?? "";
+  const emails = raw
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .map(normalizeEmail);
+  return new Set(emails);
+}
+
 function getMarshalAllowlist(): Set<string> {
   const raw = process.env.NEXT_PUBLIC_MARSHAL_EMAILS ?? "";
   const emails = raw
@@ -70,6 +81,22 @@ export function isAllowedAdminFromEnv(email: string): boolean {
   const normalized = normalizeEmail(email);
   if (!normalized) return false;
   return getAdminAllowlist().has(normalized);
+}
+
+async function isAllowedRaceControlFromSupabase(email: string): Promise<boolean> {
+  const normalized = normalizeEmail(email);
+  if (!normalized) return false;
+
+  const { data, error } = await supabase
+    .from("racecontrol_users")
+    .select("email")
+    .eq("email", normalized)
+    .eq("is_active", true)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) return false;
+  return Boolean(data?.email);
 }
 
 async function isAllowedMarshalFromSupabase(email: string): Promise<boolean> {
@@ -142,6 +169,22 @@ export async function isAllowedDeveloper(email: string): Promise<boolean> {
   if (await isAllowedAdmin(normalized)) return true;
   if (await isAllowedDeveloperFromSupabase(normalized)) return true;
   return isAllowedDeveloperFromEnv(normalized);
+}
+
+export function isAllowedRaceControlFromEnv(email: string): boolean {
+  if (!allowPublicRoleFallback()) return false;
+  const normalized = normalizeEmail(email);
+  if (!normalized) return false;
+  if (isAllowedAdminFromEnv(normalized)) return true;
+  return getRaceControlAllowlist().has(normalized);
+}
+
+export async function isAllowedRaceControl(email: string): Promise<boolean> {
+  const normalized = normalizeEmail(email);
+  if (!normalized) return false;
+  if (await isAllowedAdmin(normalized)) return true;
+  if (await isAllowedRaceControlFromSupabase(normalized)) return true;
+  return isAllowedRaceControlFromEnv(normalized);
 }
 
 export function isAllowedMarshalFromEnv(email: string): boolean {
@@ -253,6 +296,12 @@ export async function requireAdminUserEmail(): Promise<string> {
 export async function requireDeveloperUserEmail(): Promise<string> {
   const email = await requireSignedInUserEmail();
   if (!(await isAllowedDeveloper(email))) throw new Error(NOT_DEVELOPER_ERROR);
+  return email;
+}
+
+export async function requireRaceControlUserEmail(): Promise<string> {
+  const email = await requireSignedInUserEmail();
+  if (!(await isAllowedRaceControl(email))) throw new Error(NOT_RACE_CONTROL_ERROR);
   return email;
 }
 
