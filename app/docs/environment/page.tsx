@@ -18,6 +18,7 @@ export default function EnvironmentPage() {
         <ul>
           <li>`NEXT_PUBLIC_ADMIN_EMAILS` (optional fallback allowlist).</li>
           <li>`NEXT_PUBLIC_DEV_EMAILS` (optional fallback developer allowlist).</li>
+          <li>`NEXT_PUBLIC_RACECONTROL_EMAILS` (optional fallback race control allowlist).</li>
           <li>`NEXT_PUBLIC_MARSHAL_EMAILS` (optional fallback marshal allowlist).</li>
           <li>`NEXT_PUBLIC_DISCORD_PROXY_URL` (optional external notification bridge).</li>
         </ul>
@@ -26,6 +27,12 @@ export default function EnvironmentPage() {
           <li>Primary source: `dev_users` table in Supabase (`is_active = true`).</li>
           <li>Fallback source: `NEXT_PUBLIC_DEV_EMAILS` in `.env.local`.</li>
           <li>Team members sign in at `/signin` and then open the route for their role.</li>
+        </ul>
+        <h2>Adding Race Control</h2>
+        <ul>
+          <li>Primary source: `racecontrol_users` table in Supabase (`is_active = true`).</li>
+          <li>Fallback source: `NEXT_PUBLIC_RACECONTROL_EMAILS` in `.env.local`.</li>
+          <li>Race control users must be signed in to use `/controller`.</li>
         </ul>
         <h2>Adding Marshals</h2>
         <ul>

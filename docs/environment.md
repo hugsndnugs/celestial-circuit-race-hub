@@ -11,6 +11,7 @@ This document is the consolidated environment variable reference for all
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `race-controller`, `race-signups/team-signup` | Yes | Browser-safe anon key for RLS protected queries |
 | `NEXT_PUBLIC_ADMIN_EMAILS` | `race-controller` | No | Development-only fallback admin allowlist (disabled in production unless explicitly enabled) |
 | `NEXT_PUBLIC_DEV_EMAILS` | `race-controller` | No | Development-only fallback developer allowlist (disabled in production unless explicitly enabled) |
+| `NEXT_PUBLIC_RACECONTROL_EMAILS` | `race-controller` | No | Development-only fallback race-control allowlist (disabled in production unless explicitly enabled) |
 | `NEXT_PUBLIC_MARSHAL_EMAILS` | `race-controller` | No | Development-only fallback marshal allowlist (disabled in production unless explicitly enabled) |
 | `NEXT_PUBLIC_ALLOW_ENV_ROLE_FALLBACK` | `race-controller` | No | Set to `true` to allow public env role fallbacks in production (default is fail-closed) |
 | `NEXT_PUBLIC_DISCORD_PROXY_URL` | `race-controller` | No | Proxy endpoint for optional Discord notifications |
@@ -101,6 +102,46 @@ If `dev_users` has no active match, the app can check `NEXT_PUBLIC_DEV_EMAILS` o
 - Keep this for emergency/fallback access only.
 - In production, this is disabled unless `NEXT_PUBLIC_ALLOW_ENV_ROLE_FALLBACK=true`.
 - Prefer `dev_users` for normal operations.
+
+## Managing Race Control Access
+
+Race controller hub access requires authentication and race-control/admin allowlist membership.
+
+### Primary method (database)
+
+Use `public.racecontrol_users` in Supabase as the source of truth:
+
+- Add an active row for each race control email.
+- Use lowercase email values.
+- Set `is_active = true` to grant access.
+
+Example:
+
+```sql
+insert into public.racecontrol_users (email, display_name, is_active)
+values ('racecontrol@example.com', 'Race Control', true)
+on conflict (email)
+do update
+set display_name = excluded.display_name,
+    is_active = excluded.is_active;
+```
+
+To revoke access:
+
+```sql
+update public.racecontrol_users
+set is_active = false
+where email = 'racecontrol@example.com';
+```
+
+### Fallback method (environment)
+
+If `racecontrol_users` has no active match, the app can check `NEXT_PUBLIC_RACECONTROL_EMAILS` only when env fallback is enabled.
+
+- Comma-separated list of race-control emails.
+- Keep this for emergency/fallback access only.
+- In production, this is disabled unless `NEXT_PUBLIC_ALLOW_ENV_ROLE_FALLBACK=true`.
+- Prefer `racecontrol_users` for normal operations.
 
 ## Managing Marshal Access
 

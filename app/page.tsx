@@ -3,7 +3,8 @@
 /* eslint-disable @next/next/no-img-element */
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { getCurrentUserEmail, isAllowedAdmin, isAllowedDeveloper } from "@/lib/controller/admin-auth";
+import { HomepageAdminPanel } from "@/app/HomepageAdminPanel";
+import { getCurrentUserEmail, isAllowedAdmin, isAllowedRaceControl } from "@/lib/controller/admin-auth";
 import { defaultHomepageSettings, loadHomepageSettings, type HomepageSettings } from "@/lib/homepage-settings";
 
 const HOME_ROTATOR_REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
@@ -38,6 +39,7 @@ const targets: HubTarget[] = [
 
 export default function HomePage() {
   const [isCheckingAccess, setIsCheckingAccess] = useState(true);
+  const [showHomepageAdminPanel, setShowHomepageAdminPanel] = useState(false);
   const [showRaceControllerCard, setShowRaceControllerCard] = useState(false);
   const [homepageSettings, setHomepageSettings] = useState<HomepageSettings>(defaultHomepageSettings);
   const [activeSlideIndex, setActiveSlideIndex] = useState(0);
@@ -49,14 +51,17 @@ export default function HomePage() {
         const email = await getCurrentUserEmail();
         if (!email) {
           if (!isMounted) return;
+          setShowHomepageAdminPanel(false);
           setShowRaceControllerCard(false);
           return;
         }
-        const [adminAllowed, developerAllowed] = await Promise.all([isAllowedAdmin(email), isAllowedDeveloper(email)]);
+        const [adminAllowed, raceControlAllowed] = await Promise.all([isAllowedAdmin(email), isAllowedRaceControl(email)]);
         if (!isMounted) return;
-        setShowRaceControllerCard(adminAllowed || developerAllowed);
+        setShowHomepageAdminPanel(adminAllowed);
+        setShowRaceControllerCard(raceControlAllowed);
       } catch {
         if (!isMounted) return;
+        setShowHomepageAdminPanel(false);
         setShowRaceControllerCard(false);
       } finally {
         if (!isMounted) return;
@@ -112,6 +117,9 @@ export default function HomePage() {
 
   return (
     <main className="home-main">
+      {showHomepageAdminPanel ? (
+        <HomepageAdminPanel settings={homepageSettings} onSettingsSaved={setHomepageSettings} />
+      ) : null}
       <section className="home-hero" aria-label="Featured Celestial Circuit homepage content">
         <div className="home-hero-copy">
           <p className="home-eyebrow">{homepageSettings.eyebrow}</p>

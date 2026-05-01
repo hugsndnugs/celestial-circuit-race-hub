@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { getCurrentUserEmail, isAllowedAdmin, isAllowedDeveloper, isAllowedMarshal } from "@/lib/controller/admin-auth";
+import { getCurrentUserEmail, isAllowedAdmin, isAllowedDeveloper, isAllowedMarshal, isAllowedRaceControl } from "@/lib/controller/admin-auth";
 import { getSupabaseBrowser } from "@/lib/signups/supabaseBrowser";
 
 export default function UnifiedSignInPage() {
@@ -12,6 +12,7 @@ export default function UnifiedSignInPage() {
   const [hasAdminAccess, setHasAdminAccess] = useState(false);
   const [hasDeveloperAccess, setHasDeveloperAccess] = useState(false);
   const [hasMarshalAccess, setHasMarshalAccess] = useState(false);
+  const [hasRaceControlAccess, setHasRaceControlAccess] = useState(false);
   const [status, setStatus] = useState("Enter your email to sign in.");
 
   const redirectUrl = globalThis.location === undefined ? "/signin" : `${globalThis.location.origin}/signin`;
@@ -26,17 +27,20 @@ export default function UnifiedSignInPage() {
         setHasAdminAccess(false);
         setHasDeveloperAccess(false);
         setHasMarshalAccess(false);
+        setHasRaceControlAccess(false);
         return;
       }
-      const [adminAllowed, developerAllowed, marshalAllowed] = await Promise.all([
+      const [adminAllowed, developerAllowed, marshalAllowed, raceControlAllowed] = await Promise.all([
         isAllowedAdmin(currentEmail),
         isAllowedDeveloper(currentEmail),
         isAllowedMarshal(currentEmail),
+        isAllowedRaceControl(currentEmail),
       ]);
       if (!isMounted) return;
       setHasAdminAccess(adminAllowed);
       setHasDeveloperAccess(developerAllowed);
       setHasMarshalAccess(marshalAllowed);
+      setHasRaceControlAccess(raceControlAllowed);
     }
     void loadSessionState();
     return () => {
@@ -72,6 +76,7 @@ export default function UnifiedSignInPage() {
     setHasAdminAccess(false);
     setHasDeveloperAccess(false);
     setHasMarshalAccess(false);
+    setHasRaceControlAccess(false);
     setStatus("Signed out.");
   }
 
@@ -79,10 +84,11 @@ export default function UnifiedSignInPage() {
     <main className="page-stack">
       <section className="card">
         <h1>Sign In</h1>
-        <p className="muted">Centralized sign-in for admin, marshal, and developer access.</p>
+        <p className="muted">Centralized sign-in for admin, race control, marshal, and developer access.</p>
         <p>
           Authorization is Supabase-first. Optional env fallback is available via <code>NEXT_PUBLIC_ADMIN_EMAILS</code>,{" "}
-          <code>NEXT_PUBLIC_DEV_EMAILS</code>, and <code>NEXT_PUBLIC_MARSHAL_EMAILS</code>.
+          <code>NEXT_PUBLIC_RACECONTROL_EMAILS</code>, <code>NEXT_PUBLIC_DEV_EMAILS</code>, and{" "}
+          <code>NEXT_PUBLIC_MARSHAL_EMAILS</code>.
         </p>
       </section>
       <section className="card">
@@ -90,11 +96,13 @@ export default function UnifiedSignInPage() {
           <>
             <p>Signed in as {signedInEmail}</p>
             <p>
-              Access: {hasAdminAccess ? "Admin" : "No admin"} | {hasMarshalAccess ? "Marshal" : "No marshal"} |{" "}
+              Access: {hasAdminAccess ? "Admin" : "No admin"} | {hasRaceControlAccess ? "Race control" : "No race control"} |{" "}
+              {hasMarshalAccess ? "Marshal" : "No marshal"} |{" "}
               {hasDeveloperAccess ? "Developer" : "No developer"}
             </p>
             <p>
-              <Link href="/controller/admin">Admin Console</Link> | <Link href="/controller/marshal">Marshal View</Link> |{" "}
+              <Link href="/controller">Race Controller</Link> | <Link href="/controller/admin">Admin Console</Link> |{" "}
+              <Link href="/controller/marshal">Marshal View</Link> |{" "}
               <Link href="/docs">Docs</Link>
             </p>
             <button type="button" className="secondary" onClick={() => void signOut()}>
