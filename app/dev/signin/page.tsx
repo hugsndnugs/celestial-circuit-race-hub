@@ -84,7 +84,7 @@ export default function DeveloperSignInPage() {
         {signedInEmail ? (
           <>
             <p>Signed in as {signedInEmail}</p>
-            <p>{hasDeveloperAccess ? "Developer access granted." : "Signed in, but this email is not on the developer allowlist."}</p>
+            <p>{hasDeveloperAccess ? "Developer access granted." : "Access denied. You do not have this role."}</p>
             <p>
               <Link href="/docs">Open docs</Link>
             </p>

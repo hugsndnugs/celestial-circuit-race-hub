@@ -159,7 +159,7 @@ export default function MarshalPage() {
       <main className="page-stack">
         <section className="card">
           <h1>Marshal View</h1>
-          <p>Access denied. This account is not on the marshal or admin allowlist.</p>
+          <p>Access denied. You do not have this role.</p>
           <p>
             Signed in as {signedInEmail}. <Link href="/signin">Switch account</Link>
           </p>
