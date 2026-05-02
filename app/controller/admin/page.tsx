@@ -104,6 +104,35 @@ export default function AdminPage() {
       : `${globalThis.location.origin}${globalThis.location.pathname}`;
   const raceRefreshTimerRef = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null);
   const queueRefreshTimerRef = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null);
+  const pageMountedRef = useRef(true);
+  const didAutoLoadRacesRef = useRef(false);
+  const dialogPrimaryButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    pageMountedRef.current = true;
+    return () => {
+      pageMountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!confirmAction && !reasonAction) return;
+    const focusHandle = globalThis.setTimeout(() => {
+      dialogPrimaryButtonRef.current?.focus();
+    }, 0);
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setConfirmAction(null);
+        setReasonAction(null);
+        setReasonInput("");
+      }
+    }
+    globalThis.addEventListener("keydown", onKeyDown);
+    return () => {
+      globalThis.clearTimeout(focusHandle);
+      globalThis.removeEventListener("keydown", onKeyDown);
+    };
+  }, [confirmAction, reasonAction]);
 
   useEffect(() => {
     if (!supabase) return;
@@ -222,6 +251,12 @@ export default function AdminPage() {
     }
   }
 
+  useEffect(() => {
+    if (!accessAllowed || didAutoLoadRacesRef.current) return;
+    didAutoLoadRacesRef.current = true;
+    void refreshRaces();
+  }, [accessAllowed]);
+
   async function refreshRaceContext(reference: string) {
     if (!reference) return;
     try {
@@ -232,6 +267,7 @@ export default function AdminPage() {
         getCorrectionRequestsByRace(reference),
         getIncidentNotesByRace(reference)
       ]);
+      if (!pageMountedRef.current) return;
       setTeams(nextTeams);
       setRelayPoints(nextRelayPoints);
       setEvents(nextEvents);
@@ -240,6 +276,7 @@ export default function AdminPage() {
       setLiveOpsNowMs(Date.now());
     } catch (error) {
       console.error("Failed to load race context", error);
+      if (!pageMountedRef.current) return;
       setStatus("Failed to load race context.");
     }
   }
@@ -289,10 +326,13 @@ export default function AdminPage() {
       if (!lowered) return true;
       return race.name.toLowerCase().includes(lowered) || race.code.toLowerCase().includes(lowered);
     });
+    const sorted = [...filtered];
     if (sortOrder === "name") {
-      return filtered.sort((a, b) => a.name.localeCompare(b.name));
+      sorted.sort((a, b) => a.name.localeCompare(b.name));
+    } else {
+      sorted.sort((a, b) => b.id.localeCompare(a.id));
     }
-    return filtered.sort((a, b) => b.id.localeCompare(a.id));
+    return sorted;
   }, [races, search, sortOrder]);
 
   const eventTeamMap = useMemo(() => new Map(teams.map((team) => [team.id, team.name])), [teams]);
@@ -363,9 +403,6 @@ export default function AdminPage() {
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "race_incident_notes", filter: `race_id=eq.${selectedRace.id}` }, () => {
         scheduleRaceContextRefresh(selectedRace.code);
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "team_signup_requests" }, () => {
-        scheduleRacesRefresh();
       })
       .subscribe();
     return () => {
@@ -442,7 +479,12 @@ export default function AdminPage() {
       if (nextStatusEtaDerivedIso) {
         nextStatusEta = new Date(nextStatusEtaDerivedIso).toISOString();
       } else if (nextStatusEtaInput.trim()) {
-        nextStatusEta = new Date(nextStatusEtaInput).toISOString();
+        const parsedEta = Date.parse(nextStatusEtaInput.trim());
+        if (!Number.isFinite(parsedEta)) {
+          setStatus("Next status ETA must be a valid date/time.");
+          return;
+        }
+        nextStatusEta = new Date(parsedEta).toISOString();
       }
       const updated = await updateRaceStatusDetails({
         raceId: selectedRace.id,
@@ -607,7 +649,10 @@ export default function AdminPage() {
 
   async function markSignupSpam(signup: SignupRequest) {
     const reason = reasonInput.trim();
-    if (!reason.trim()) return;
+    if (!reason.trim()) {
+      setStatus("Spam reason is required.");
+      return;
+    }
     try {
       if (!authIdentity?.email) throw new Error("Sign in required.");
       setSignupActionLoadingId(signup.id);
@@ -632,7 +677,11 @@ export default function AdminPage() {
       return;
     }
     const reason = reasonInput.trim();
-    if (!reason.trim()) return;
+    if (!reason.trim()) {
+      setStatus("A reason is required for bulk moderation.");
+      return;
+    }
+    const bulkCount = selectedSignupIds.length;
     try {
       if (!authIdentity?.email) throw new Error("Sign in required.");
       await bulkModerateSignupRequests({
@@ -643,7 +692,7 @@ export default function AdminPage() {
       });
       setSelectedSignupIds([]);
       await refreshRaces();
-      setStatus(`Bulk ${action} complete for ${selectedSignupIds.length} signup(s).`);
+      setStatus(`Bulk ${action} complete for ${bulkCount} signup(s).`);
     } catch (error) {
       console.error("Bulk signup moderation failed", error);
       setStatus(error instanceof Error ? error.message : "Bulk moderation failed.");
@@ -705,12 +754,19 @@ export default function AdminPage() {
   }
 
   async function submitConfirmAction() {
-    if (confirmAction === "startRace") {
-      await startRace();
-    } else if (confirmAction === "completeRace") {
-      await completeRace();
+    const action = confirmAction;
+    try {
+      if (action === "startRace") {
+        await startRace();
+      } else if (action === "completeRace") {
+        await completeRace();
+      }
+    } catch (error) {
+      console.error("Confirm action failed", error);
+      setStatus(action === "startRace" ? "Start failed." : "Completion failed.");
+    } finally {
+      setConfirmAction(null);
     }
-    setConfirmAction(null);
   }
 
   async function submitReasonAction() {
@@ -719,17 +775,23 @@ export default function AdminPage() {
       setStatus("Reason is required.");
       return;
     }
-    if (reasonAction.kind === "rejectSignup") {
-      await rejectSignup(reasonAction.signup);
-    } else if (reasonAction.kind === "spamSignup") {
-      await markSignupSpam(reasonAction.signup);
-    } else if (reasonAction.kind === "bulkModeration") {
-      await runBulkSignupModeration(reasonAction.action);
-    } else {
-      await rejectRequest(reasonAction.requestId);
+    try {
+      if (reasonAction.kind === "rejectSignup") {
+        await rejectSignup(reasonAction.signup);
+      } else if (reasonAction.kind === "spamSignup") {
+        await markSignupSpam(reasonAction.signup);
+      } else if (reasonAction.kind === "bulkModeration") {
+        await runBulkSignupModeration(reasonAction.action);
+      } else {
+        await rejectRequest(reasonAction.requestId);
+      }
+    } catch (error) {
+      console.error("Reason dialog action failed", error);
+      setStatus(error instanceof Error ? error.message : "Action failed.");
+    } finally {
+      setReasonAction(null);
+      setReasonInput("");
     }
-    setReasonAction(null);
-    setReasonInput("");
   }
 
   const signedInLabel = getSignedInLabel(authIdentity);
@@ -1136,7 +1198,10 @@ export default function AdminPage() {
           ) : (
             <p>Paste an event ID to preview target details before submitting.</p>
           )}
-          <button type="submit" disabled={!raceRef || !correctionTarget}>
+          <button
+            type="submit"
+            disabled={!raceRef || !correctionTarget || correctionReason.trim().length < 3}
+          >
             Queue correction request
           </button>
         </form>
@@ -1229,7 +1294,7 @@ export default function AdminPage() {
             rows={3}
             placeholder="Describe issue, action taken, and follow-up."
           />
-          <button type="submit" disabled={!raceRef || !incidentNoteText.trim()}>
+          <button type="submit" disabled={!raceRef || incidentNoteText.trim().length < 3}>
             Log incident note
           </button>
         </form>
@@ -1255,7 +1320,7 @@ export default function AdminPage() {
               : `Complete race "${selectedRace?.name ?? raceRef}" now?`}
           </p>
           <div className="admin-actions">
-            <button type="button" onClick={() => void submitConfirmAction()}>
+            <button ref={dialogPrimaryButtonRef} type="button" onClick={() => void submitConfirmAction()}>
               Confirm
             </button>
             <button type="button" className="secondary" onClick={() => setConfirmAction(null)}>
@@ -1276,7 +1341,7 @@ export default function AdminPage() {
             rows={3}
           />
           <div className="admin-actions">
-            <button type="button" onClick={() => void submitReasonAction()}>
+            <button ref={dialogPrimaryButtonRef} type="button" onClick={() => void submitReasonAction()}>
               Confirm
             </button>
             <button

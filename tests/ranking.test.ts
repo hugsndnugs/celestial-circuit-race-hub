@@ -78,6 +78,74 @@ test("computeLeaderboard ranks by completed points then earliest time", () => {
   assert.equal(rows[0]?.elapsedSeconds, 120);
 });
 
+test("computeLeaderboard counts distinct relay points only when duplicate events exist", () => {
+  const relayEvents: RelayEvent[] = [
+    {
+      id: "e1",
+      raceId: "race-1",
+      teamId: "t1",
+      relayPointId: "p1",
+      recordedAt: "2026-01-01T00:01:00.000Z",
+      effectiveRecordedAt: "2026-01-01T00:01:00.000Z",
+      recordedBy: "marshal:1",
+      source: "marshal_tap",
+      supersedesEventId: null,
+      correctionReason: null,
+      invalidatedByEventId: null,
+    },
+    {
+      id: "e1b",
+      raceId: "race-1",
+      teamId: "t1",
+      relayPointId: "p1",
+      recordedAt: "2026-01-01T00:02:00.000Z",
+      effectiveRecordedAt: "2026-01-01T00:02:00.000Z",
+      recordedBy: "marshal:1",
+      source: "marshal_tap",
+      supersedesEventId: null,
+      correctionReason: null,
+      invalidatedByEventId: null,
+    },
+  ];
+  const rows = computeLeaderboard({ race: baseRace(), teams: [teams[0]!], relayPoints, relayEvents });
+  const t1 = rows.find((row) => row.teamId === "t1");
+  assert.equal(t1?.completedRelayPoints, 1);
+});
+
+test("computeLeaderboard breaks ties with team name", () => {
+  const relayEvents: RelayEvent[] = [
+    {
+      id: "e1",
+      raceId: "race-1",
+      teamId: "t1",
+      relayPointId: "p1",
+      recordedAt: "2026-01-01T00:01:00.000Z",
+      effectiveRecordedAt: "2026-01-01T00:01:00.000Z",
+      recordedBy: "marshal:1",
+      source: "marshal_tap",
+      supersedesEventId: null,
+      correctionReason: null,
+      invalidatedByEventId: null,
+    },
+    {
+      id: "e2",
+      raceId: "race-1",
+      teamId: "t2",
+      relayPointId: "p1",
+      recordedAt: "2026-01-01T00:01:00.000Z",
+      effectiveRecordedAt: "2026-01-01T00:01:00.000Z",
+      recordedBy: "marshal:1",
+      source: "marshal_tap",
+      supersedesEventId: null,
+      correctionReason: null,
+      invalidatedByEventId: null,
+    },
+  ];
+  const rows = computeLeaderboard({ race: baseRace(), teams, relayPoints, relayEvents });
+  assert.equal(rows[0]?.teamName, "A Team");
+  assert.equal(rows[1]?.teamName, "B Team");
+});
+
 test("computeLeaderboard ignores invalidated events", () => {
   const relayEvents: RelayEvent[] = [
     {

@@ -70,11 +70,9 @@ jobs:
           if [ -z "$SUPABASE_ANON_KEY" ]; then
             SUPABASE_ANON_KEY="${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}"
           fi
-          if [ -z "$SUPABASE_URL" ]; then
-            SUPABASE_URL="https://example.supabase.co"
-          fi
-          if [ -z "$SUPABASE_ANON_KEY" ]; then
-            SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyZWYiOiJleGFtcGxlIiwicm9sZSI6ImFub24ifQ.signature"
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "PR build job requires NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY (repository Variables or Secrets)."
+            exit 1
           fi
 
           echo "NEXT_PUBLIC_SUPABASE_URL=$SUPABASE_URL" >> "$GITHUB_ENV"

@@ -45,6 +45,24 @@ const RACE_CODE_WORDS = [
 
 const LEADERBOARD_CACHE_TTL_MS = 3000;
 const leaderboardCache = new Map<string, { expiresAt: number; rows: LeaderboardRow[] }>();
+const BULK_MODERATE_MAX_IDS = 100;
+const SIGNUP_NOTES_MAX_LEN = 2000;
+
+function invalidateLeaderboardCacheForRace(raceId: string): void {
+  leaderboardCache.delete(raceId);
+}
+
+function normalizeTeamMembers(members: unknown): string[] {
+  if (!Array.isArray(members)) return [];
+  return members.filter((member): member is string => typeof member === "string");
+}
+
+function mergeModerationNotes(existing: string | null | undefined, reason: string, label: "spam" | "rejection"): string {
+  const stamp = `[moderation:${label}] ${reason}`;
+  const base = (existing ?? "").trim();
+  const merged = base.length > 0 ? `${base}\n${stamp}` : stamp;
+  return merged.length > SIGNUP_NOTES_MAX_LEN ? merged.slice(0, SIGNUP_NOTES_MAX_LEN) : merged;
+}
 
 function toRace(row: {
   id: string;
@@ -77,14 +95,14 @@ function toTeam(row: {
   id: string;
   race_id: string;
   name: string;
-  members: string[];
+  members: unknown;
   created_at: string;
 }): Team {
   return {
     id: row.id,
     raceId: row.race_id,
     name: row.name,
-    members: row.members,
+    members: normalizeTeamMembers(row.members),
     createdAt: row.created_at,
   };
 }
@@ -350,7 +368,9 @@ export async function createRace(input: { name: string; relayPoints: string[] })
     code,
     relayPoints: payload.relayPoints,
   });
-  return toRace(data);
+  const created = toRace(data);
+  invalidateLeaderboardCacheForRace(created.id);
+  return created;
 }
 
 export async function startRace(raceRef: string): Promise<Race> {
@@ -365,6 +385,7 @@ export async function startRace(raceRef: string): Promise<Race> {
     .select("id, code, name, status, started_at, ended_at, status_note, weather_note, is_live_override, next_status_eta, next_status_eta_note")
     .single();
   if (error || !data) throw new Error(error?.message ?? "Failed to start race.");
+  invalidateLeaderboardCacheForRace(race.id);
   return toRace(data);
 }
 
@@ -380,6 +401,7 @@ export async function completeRace(raceRef: string): Promise<Race> {
     .select("id, code, name, status, started_at, ended_at, status_note, weather_note, is_live_override, next_status_eta, next_status_eta_note")
     .single();
   if (error || !data) throw new Error(error?.message ?? "Failed to complete race.");
+  invalidateLeaderboardCacheForRace(race.id);
   return toRace(data);
 }
 
@@ -409,6 +431,7 @@ export async function updateRaceStatusDetails(input: {
     .select("id, code, name, status, started_at, ended_at, status_note, weather_note, is_live_override, next_status_eta, next_status_eta_note")
     .single();
   if (error || !data) throw new Error(error?.message ?? "Failed to update race status details.");
+  invalidateLeaderboardCacheForRace(race.id);
   return toRace(data);
 }
 
@@ -420,9 +443,7 @@ export async function getTeamsByRace(raceRef: string): Promise<Team[]> {
     .eq("race_id", race.id)
     .order("created_at", { ascending: true });
   if (error) throw new Error(error.message);
-  return (data ?? []).map((row: { id: string; race_id: string; name: string; members: unknown; created_at: string }) =>
-    toTeam({ ...row, members: (row.members as string[]) ?? [] })
-  );
+  return (data ?? []).map((row: { id: string; race_id: string; name: string; members: unknown; created_at: string }) => toTeam(row));
 }
 
 export async function getRelayPointsByRace(raceRef: string): Promise<RelayPoint[]> {
@@ -447,7 +468,8 @@ export async function createTeam(input: { raceId: string; name: string; members:
     .select("id, race_id, name, members, created_at")
     .single();
   if (error || !data) throw new Error(error?.message ?? "Failed to create team.");
-  return toTeam({ ...data, members: (data.members as string[]) ?? [] });
+  invalidateLeaderboardCacheForRace(race.id);
+  return toTeam(data);
 }
 
 export async function getRelayEventsByRace(raceRef: string): Promise<RelayEvent[]> {
@@ -482,7 +504,10 @@ export async function markRelayPass(input: { raceId: string; teamId: string; rel
     .limit(1)
     .maybeSingle();
   if (duplicate.error) throw new Error(duplicate.error.message);
-  if (duplicate.data) return toRelayEvent(asRelayEventRow(duplicate.data));
+  if (duplicate.data) {
+    invalidateLeaderboardCacheForRace(race.id);
+    return toRelayEvent(asRelayEventRow(duplicate.data));
+  }
   const insertResponse = await supabase
     .from("relay_events")
     .insert([
@@ -503,7 +528,7 @@ export async function markRelayPass(input: { raceId: string; teamId: string; rel
     )
     .single();
   if (insertResponse.error) {
-    if (insertResponse.error.code === "23505" && insertResponse.error.message.includes("uniq_valid_relay_pass")) {
+    if (insertResponse.error.code === "23505") {
       const existingResponse = await supabase
         .from("relay_events")
         .select(
@@ -518,12 +543,14 @@ export async function markRelayPass(input: { raceId: string; teamId: string; rel
         .limit(1)
         .single();
       if (!existingResponse.error && existingResponse.data) {
+        invalidateLeaderboardCacheForRace(race.id);
         return toRelayEvent(asRelayEventRow(existingResponse.data));
       }
     }
     throw new Error(insertResponse.error.message);
   }
   if (!insertResponse.data) throw new Error("Failed to record relay pass.");
+  invalidateLeaderboardCacheForRace(race.id);
   return toRelayEvent(asRelayEventRow(insertResponse.data));
 }
 
@@ -549,6 +576,8 @@ export async function addCorrection(input: {
   const events = await getRelayEventsByRace(payload.raceId);
   const matched = events.find((event) => event.id === applied.appliedEventId);
   if (!matched) throw new Error("Applied correction event not found.");
+  const raceResolved = await resolveRace(payload.raceId);
+  invalidateLeaderboardCacheForRace(raceResolved.id);
   return matched;
 }
 
@@ -610,7 +639,8 @@ export async function approveSignupToRace(input: {
     members: unknown;
     created_at: string;
   };
-  return toTeam({ ...teamRow, members: (teamRow.members as string[]) ?? [] });
+  invalidateLeaderboardCacheForRace(race.id);
+  return toTeam(teamRow);
 }
 
 export async function markSignupAsSpam(input: {
@@ -625,9 +655,16 @@ export async function markSignupAsSpam(input: {
   if (!signupId) throw new Error("Signup ID is required.");
   if (!approvedBy || approvedBy !== adminEmail.toLowerCase()) throw new Error("Approver does not match signed-in admin.");
   if (!reason) throw new Error("Spam reason is required.");
+  const prior = await supabase
+    .from("team_signup_requests")
+    .select("notes")
+    .eq("id", signupId)
+    .eq("status", "pending")
+    .maybeSingle();
+  const mergedNotes = mergeModerationNotes(prior.data?.notes ?? null, reason, "spam");
   const { data, error } = await supabase
     .from("team_signup_requests")
-    .update({ status: "spam", notes: reason })
+    .update({ status: "spam", notes: mergedNotes })
     .eq("id", signupId)
     .eq("status", "pending")
     .select("id, team_name, captain_discord, teammates_discord, contact_email, notes, status, source, submitted_at")
@@ -642,7 +679,10 @@ export async function bulkModerateSignupRequests(input: {
   reason: string;
   approvedBy: string;
 }): Promise<SignupRequest[]> {
-  const uniqueSignupIds = [...new Set(input.signupIds.map((signupId) => signupId.trim()).filter(Boolean))];
+  const uniqueSignupIds = [...new Set(input.signupIds.map((signupId) => signupId.trim()).filter(Boolean))].slice(
+    0,
+    BULK_MODERATE_MAX_IDS,
+  );
   const maxConcurrency = 5;
   const results: SignupRequest[] = [];
   for (let index = 0; index < uniqueSignupIds.length; index += maxConcurrency) {
@@ -672,9 +712,16 @@ export async function rejectSignupRequest(input: {
   if (approvedBy !== adminEmail.toLowerCase()) throw new Error("Approver does not match signed-in admin.");
   const reason = input.reason.trim();
   if (!reason) throw new Error("Rejection reason is required.");
+  const prior = await supabase
+    .from("team_signup_requests")
+    .select("notes")
+    .eq("id", signupId)
+    .eq("status", "pending")
+    .maybeSingle();
+  const mergedNotes = mergeModerationNotes(prior.data?.notes ?? null, reason, "rejection");
   const { data, error } = await supabase
     .from("team_signup_requests")
-    .update({ status: "rejected", notes: reason })
+    .update({ status: "rejected", notes: mergedNotes })
     .eq("id", signupId)
     .eq("status", "pending")
     .select("id, team_name, captain_discord, teammates_discord, contact_email, notes, status, source, submitted_at")
@@ -718,23 +765,31 @@ export async function createCorrectionRequest(input: {
 
 export async function applyCorrectionRequest(requestId: string): Promise<CorrectionRequest> {
   const adminEmail = await requireAdminAccess();
-  return invokeAdminCorrections<CorrectionRequest>({
+  const { data: row } = await supabase.from("correction_requests").select("race_id").eq("id", requestId).maybeSingle();
+  const result = await invokeAdminCorrections<CorrectionRequest>({
     action: "review",
     requestId,
     reviewedBy: adminEmail,
     reviewAction: "approve",
   });
+  const raceId = (row as { race_id?: string } | null)?.race_id;
+  if (raceId) invalidateLeaderboardCacheForRace(raceId);
+  return result;
 }
 
 export async function rejectCorrectionRequest(requestId: string, reviewNotes: string): Promise<CorrectionRequest> {
   const adminEmail = await requireAdminAccess();
-  return invokeAdminCorrections<CorrectionRequest>({
+  const { data: row } = await supabase.from("correction_requests").select("race_id").eq("id", requestId).maybeSingle();
+  const result = await invokeAdminCorrections<CorrectionRequest>({
     action: "review",
     requestId,
     reviewedBy: adminEmail,
     reviewAction: "reject",
     reviewNotes,
   });
+  const raceId = (row as { race_id?: string } | null)?.race_id;
+  if (raceId) invalidateLeaderboardCacheForRace(raceId);
+  return result;
 }
 
 export async function getIncidentNotesByRace(raceRef: string): Promise<RaceIncidentNote[]> {
@@ -798,6 +853,7 @@ export async function getRaceEvidenceBundle(raceRef: string): Promise<{
   incidentNotes: RaceIncidentNote[];
   leaderboard: LeaderboardRow[];
 }> {
+  await requireAdminAccess();
   const race = await resolveRace(raceRef);
   const [teams, relayPoints, relayEvents, correctionRequests, incidentNotes] = await Promise.all([
     getTeamsByRace(race.id),

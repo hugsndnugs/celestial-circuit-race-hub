@@ -92,12 +92,28 @@ export default function HomePage() {
     if (homepageSettings.slides.length <= 1) return;
     const mediaQuery =
       typeof globalThis.matchMedia === "function" ? globalThis.matchMedia(HOME_ROTATOR_REDUCED_MOTION_QUERY) : null;
-    if (mediaQuery?.matches) return;
-    const intervalMs = homepageSettings.rotationIntervalSeconds * 1000;
-    const handle = globalThis.setInterval(() => {
-      setActiveSlideIndex((current) => (current + 1) % homepageSettings.slides.length);
-    }, intervalMs);
-    return () => globalThis.clearInterval(handle);
+    let intervalHandle: ReturnType<typeof globalThis.setInterval> | null = null;
+    const startOrStopRotator = () => {
+      if (intervalHandle !== null) {
+        globalThis.clearInterval(intervalHandle);
+        intervalHandle = null;
+      }
+      if (mediaQuery?.matches) return;
+      const intervalMs = homepageSettings.rotationIntervalSeconds * 1000;
+      intervalHandle = globalThis.setInterval(() => {
+        setActiveSlideIndex((current) => {
+          const len = homepageSettings.slides.length;
+          if (len <= 1) return 0;
+          return (current + 1) % len;
+        });
+      }, intervalMs);
+    };
+    startOrStopRotator();
+    mediaQuery?.addEventListener("change", startOrStopRotator);
+    return () => {
+      mediaQuery?.removeEventListener("change", startOrStopRotator);
+      if (intervalHandle !== null) globalThis.clearInterval(intervalHandle);
+    };
   }, [homepageSettings.rotationIntervalSeconds, homepageSettings.slides.length]);
 
   const visibleTargets = useMemo(() => {
@@ -113,7 +129,8 @@ export default function HomePage() {
     ];
   }, [showRaceControllerCard]);
 
-  const activeSlide = homepageSettings.slides[activeSlideIndex] ?? homepageSettings.slides[0];
+  const displaySlideIndex = Math.min(activeSlideIndex, Math.max(0, homepageSettings.slides.length - 1));
+  const activeSlide = homepageSettings.slides[displaySlideIndex] ?? homepageSettings.slides[0];
 
   return (
     <main className="home-main">
@@ -161,7 +178,7 @@ export default function HomePage() {
                   key={slide.id}
                   type="button"
                   aria-label={`Show ${slide.title || `slide ${index + 1}`}`}
-                  aria-current={index === activeSlideIndex ? "true" : undefined}
+                  aria-current={index === displaySlideIndex ? "true" : undefined}
                   onClick={() => setActiveSlideIndex(index)}
                 />
               ))}

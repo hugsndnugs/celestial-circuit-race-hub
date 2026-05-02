@@ -7,25 +7,62 @@ import { formatDateTime } from "@/lib/controller/datetime";
 import { getRaces, getRelayPointsByRace, getTeamsByRace, markRelayPass, postDiscordRelayUpdate } from "@/lib/controller/race-service";
 import { type RelayPoint, type Team } from "@/lib/controller/types";
 
+const QUEUE_STORAGE_KEY = "marshal-offline-queue-v2";
+
+type OfflineQueueItem = {
+  teamId: string;
+  relayPointId: string;
+  enqueuedAt: string;
+  raceCode: string;
+  raceId: string;
+};
+
+function isLikelyNetworkError(error: unknown): boolean {
+  if (typeof navigator !== "undefined" && !navigator.onLine) return true;
+  if (error && typeof error === "object" && "name" in error && (error as { name?: string }).name === "TypeError") {
+    return true;
+  }
+  return false;
+}
+
+function parseQueue(raw: string | null): OfflineQueueItem[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((item) => {
+        if (!item || typeof item !== "object") return null;
+        const o = item as Record<string, unknown>;
+        const teamId = typeof o.teamId === "string" ? o.teamId : "";
+        const relayPointId = typeof o.relayPointId === "string" ? o.relayPointId : "";
+        const enqueuedAt = typeof o.enqueuedAt === "string" ? o.enqueuedAt : "";
+        const raceCode = typeof o.raceCode === "string" ? o.raceCode : "";
+        const raceId = typeof o.raceId === "string" ? o.raceId : "";
+        if (!teamId || !relayPointId || !enqueuedAt) return null;
+        return { teamId, relayPointId, enqueuedAt, raceCode, raceId };
+      })
+      .filter((x): x is OfflineQueueItem => x !== null);
+  } catch {
+    return [];
+  }
+}
+
 export default function MarshalPage() {
   const [isCheckingAccess, setIsCheckingAccess] = useState(true);
   const [signedInEmail, setSignedInEmail] = useState<string | null>(null);
   const [hasMarshalAccess, setHasMarshalAccess] = useState(false);
   const [raceRef, setRaceRef] = useState("");
+  const [loadedRaceId, setLoadedRaceId] = useState("");
   const [teams, setTeams] = useState<Team[]>([]);
   const [relayPoints, setRelayPoints] = useState<RelayPoint[]>([]);
   const [selectedRelayPointId, setSelectedRelayPointId] = useState("");
   const [message, setMessage] = useState("Enter race code to load marshal controls.");
-  const [offlineQueue, setOfflineQueue] = useState<Array<{ teamId: string; relayPointId: string; enqueuedAt: string }>>(() => {
+  const [offlineQueue, setOfflineQueue] = useState<OfflineQueueItem[]>(() => {
     if (globalThis?.localStorage === undefined) return [];
-    const raw = globalThis.localStorage.getItem("marshal-offline-queue");
-    if (!raw) return [];
-    try {
-      return JSON.parse(raw) as Array<{ teamId: string; relayPointId: string; enqueuedAt: string }>;
-    } catch {
-      return [];
-    }
+    return parseQueue(globalThis.localStorage.getItem(QUEUE_STORAGE_KEY));
   });
+  const [submittingTeamId, setSubmittingTeamId] = useState<string | null>(null);
 
   const offlineCount = useMemo(() => offlineQueue.length, [offlineQueue]);
 
@@ -57,11 +94,21 @@ export default function MarshalPage() {
     };
   }, []);
 
-  function persistQueue(nextQueue: Array<{ teamId: string; relayPointId: string; enqueuedAt: string }>) {
+  function persistQueue(nextQueue: OfflineQueueItem[]) {
     setOfflineQueue(nextQueue);
     if (globalThis.localStorage !== undefined) {
-      globalThis.localStorage.setItem("marshal-offline-queue", JSON.stringify(nextQueue));
+      globalThis.localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(nextQueue));
     }
+  }
+
+  function appendToOfflineQueue(item: OfflineQueueItem) {
+    setOfflineQueue((previous) => {
+      const nextQueue = [...previous, item];
+      if (globalThis.localStorage !== undefined) {
+        globalThis.localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(nextQueue));
+      }
+      return nextQueue;
+    });
   }
 
   async function loadRaceContext() {
@@ -71,6 +118,7 @@ export default function MarshalPage() {
       const raceFound = races.find((race) => race.id === raceRef || race.code === raceRef);
       if (!raceFound) {
         setMessage("Race code not found.");
+        setLoadedRaceId("");
         return;
       }
       const [nextTeams, nextRelayPoints] = await Promise.all([getTeamsByRace(raceRef), getRelayPointsByRace(raceRef)]);
@@ -78,26 +126,50 @@ export default function MarshalPage() {
       setRelayPoints(nextRelayPoints);
       setSelectedRelayPointId(nextRelayPoints[0]?.id ?? "");
       setRaceRef(raceFound.code);
+      setLoadedRaceId(raceFound.id);
       setMessage("Race loaded. Tap Mark Passed per team.");
     } catch {
       setMessage("Failed to load race.");
     }
   }
 
+  const recordedByLabel = signedInEmail ? `marshal:${signedInEmail}` : "marshal:unknown";
+
   async function markPassed(teamId: string) {
+    if (!loadedRaceId || !selectedRelayPointId) {
+      setMessage("Load a race and select a relay point first.");
+      return;
+    }
+    setSubmittingTeamId(teamId);
     try {
       const relayEvent = await markRelayPass({
-        raceId: raceRef,
+        raceId: loadedRaceId,
         teamId,
         relayPointId: selectedRelayPointId,
-        recordedBy: "marshal:field-device-1",
+        recordedBy: recordedByLabel,
       });
-      await postDiscordRelayUpdate({ raceCode: raceRef, teamId, relayPointId: selectedRelayPointId, recordedAt: relayEvent.recordedAt });
+      await postDiscordRelayUpdate({
+        raceCode: raceRef,
+        teamId,
+        relayPointId: selectedRelayPointId,
+        recordedAt: relayEvent.recordedAt,
+      });
       setMessage(`Pass logged at ${formatDateTime(relayEvent.recordedAt)}`);
-    } catch {
-      const nextQueue = [...offlineQueue, { teamId, relayPointId: selectedRelayPointId, enqueuedAt: new Date().toISOString() }];
-      persistQueue(nextQueue);
-      setMessage("Offline queue enabled: pass saved locally and will retry when you press Sync queue.");
+    } catch (error) {
+      if (isLikelyNetworkError(error)) {
+        appendToOfflineQueue({
+          teamId,
+          relayPointId: selectedRelayPointId,
+          enqueuedAt: new Date().toISOString(),
+          raceCode: raceRef,
+          raceId: loadedRaceId,
+        });
+        setMessage("Offline queue enabled: pass saved locally and will retry when you press Sync queue.");
+      } else {
+        setMessage(error instanceof Error ? error.message : "Could not log pass.");
+      }
+    } finally {
+      setSubmittingTeamId(null);
     }
   }
 
@@ -106,17 +178,22 @@ export default function MarshalPage() {
       setMessage("No queued pass events to sync.");
       return;
     }
-    const remaining: Array<{ teamId: string; relayPointId: string; enqueuedAt: string }> = [];
+    const remaining: OfflineQueueItem[] = [];
     for (const queued of offlineQueue) {
+      const raceId = queued.raceId || loadedRaceId;
+      if (!raceId) {
+        remaining.push(queued);
+        continue;
+      }
       try {
         const relayEvent = await markRelayPass({
-          raceId: raceRef,
+          raceId,
           teamId: queued.teamId,
           relayPointId: queued.relayPointId,
-          recordedBy: "marshal:field-device-1",
+          recordedBy: recordedByLabel,
         });
         await postDiscordRelayUpdate({
-          raceCode: raceRef,
+          raceCode: queued.raceCode || raceRef,
           teamId: queued.teamId,
           relayPointId: queued.relayPointId,
           recordedAt: relayEvent.recordedAt,
@@ -177,13 +254,17 @@ export default function MarshalPage() {
       <section className="card section-stack">
         <label htmlFor="marshalRaceId">Race Code</label>
         <input id="marshalRaceId" value={raceRef} onChange={(e) => setRaceRef(e.target.value)} placeholder="solar-fox-42" />
-        <button type="button" onClick={loadRaceContext}>Load race</button>
+        <button type="button" onClick={() => void loadRaceContext()}>
+          Load race
+        </button>
       </section>
       <section className="card section-stack">
         <label htmlFor="relayPoint">Relay point</label>
         <select id="relayPoint" value={selectedRelayPointId} onChange={(e) => setSelectedRelayPointId(e.target.value)}>
           {relayPoints.map((relayPoint) => (
-            <option value={relayPoint.id} key={relayPoint.id}>{relayPoint.name}</option>
+            <option value={relayPoint.id} key={relayPoint.id}>
+              {relayPoint.name}
+            </option>
           ))}
         </select>
       </section>
@@ -191,14 +272,22 @@ export default function MarshalPage() {
         {teams.map((team) => (
           <div className="card" key={team.id}>
             <h2>{team.name}</h2>
-            <button type="button" onClick={() => markPassed(team.id)} disabled={!selectedRelayPointId}>Mark Passed</button>
+            <button
+              type="button"
+              onClick={() => void markPassed(team.id)}
+              disabled={!selectedRelayPointId || submittingTeamId === team.id}
+            >
+              {submittingTeamId === team.id ? "Saving…" : "Mark Passed"}
+            </button>
           </div>
         ))}
       </section>
       <section className="card">
-        <p role="status" aria-live="polite">{message}</p>
+        <p role="status" aria-live="polite">
+          {message}
+        </p>
         <p>Offline queue: {offlineCount}</p>
-        <button type="button" className="secondary" onClick={() => void syncOfflineQueue()} disabled={!raceRef || offlineCount === 0}>
+        <button type="button" className="secondary" onClick={() => void syncOfflineQueue()} disabled={offlineCount === 0}>
           Sync queue
         </button>
       </section>

@@ -8,11 +8,14 @@ export default function ControllerHomePage() {
   const [isCheckingAccess, setIsCheckingAccess] = useState(true);
   const [signedInEmail, setSignedInEmail] = useState<string | null>(null);
   const [hasControllerAccess, setHasControllerAccess] = useState(false);
+  const [accessCheckError, setAccessCheckError] = useState<string | null>(null);
+  const [retryToken, setRetryToken] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
     async function checkAccess() {
       try {
+        setAccessCheckError(null);
         const email = await getCurrentUserEmail();
         if (!isMounted) return;
         setSignedInEmail(email);
@@ -25,6 +28,7 @@ export default function ControllerHomePage() {
         setHasControllerAccess(raceControlAllowed);
       } catch {
         if (!isMounted) return;
+        setAccessCheckError("Could not verify access. Check your connection and try again.");
         setHasControllerAccess(false);
       } finally {
         if (!isMounted) return;
@@ -35,7 +39,7 @@ export default function ControllerHomePage() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [retryToken]);
 
   if (isCheckingAccess) {
     return (
@@ -54,6 +58,21 @@ export default function ControllerHomePage() {
         <section className="card">
           <h1>Race Controller</h1>
           <p>You must be signed in to access race controller tools.</p>
+          {accessCheckError ? (
+            <p className="muted" role="alert">
+              {accessCheckError}{" "}
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => {
+                  setIsCheckingAccess(true);
+                  setRetryToken((value) => value + 1);
+                }}
+              >
+                Retry
+              </button>
+            </p>
+          ) : null}
           <p>
             <Link href="/signin">Sign in</Link>
           </p>
@@ -68,6 +87,21 @@ export default function ControllerHomePage() {
         <section className="card">
           <h1>Race Controller</h1>
           <p>Access denied. You do not have this role.</p>
+          {accessCheckError ? (
+            <p className="muted" role="alert">
+              {accessCheckError}{" "}
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => {
+                  setIsCheckingAccess(true);
+                  setRetryToken((value) => value + 1);
+                }}
+              >
+                Retry
+              </button>
+            </p>
+          ) : null}
           <p>
             Signed in as {signedInEmail}. <Link href="/signin">Switch account</Link>
           </p>

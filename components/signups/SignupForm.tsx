@@ -116,36 +116,105 @@ export function SignupForm() {
         <label className="cc-label" htmlFor="team_name">
           Team name
         </label>
-        <input id="team_name" name="team_name" className="cc-input" required value={values.team_name} onChange={(e) => setValues((v) => ({ ...v, team_name: e.target.value }))} />
-        {errors.team_name ? <p className="cc-error">{errors.team_name}</p> : null}
+        <input
+          id="team_name"
+          name="team_name"
+          className="cc-input"
+          required
+          value={values.team_name}
+          onChange={(e) => setValues((v) => ({ ...v, team_name: e.target.value }))}
+          aria-invalid={errors.team_name ? true : undefined}
+          aria-describedby={errors.team_name ? "team_name_error" : undefined}
+        />
+        {errors.team_name ? (
+          <p id="team_name_error" className="cc-error">
+            {errors.team_name}
+          </p>
+        ) : null}
       </div>
       <div>
         <label className="cc-label" htmlFor="captain_discord">
           Captain Discord
         </label>
-        <input id="captain_discord" name="captain_discord" className="cc-input" required placeholder="@captain or <@123456789012345678>" autoComplete="off" value={values.captain_discord} onChange={(e) => setValues((v) => ({ ...v, captain_discord: e.target.value }))} />
-        {errors.captain_discord ? <p className="cc-error">{errors.captain_discord}</p> : null}
+        <input
+          id="captain_discord"
+          name="captain_discord"
+          className="cc-input"
+          required
+          placeholder="@captain or <@123456789012345678>"
+          autoComplete="off"
+          value={values.captain_discord}
+          onChange={(e) => setValues((v) => ({ ...v, captain_discord: e.target.value }))}
+          aria-invalid={errors.captain_discord ? true : undefined}
+          aria-describedby={errors.captain_discord ? "captain_discord_error" : undefined}
+        />
+        {errors.captain_discord ? (
+          <p id="captain_discord_error" className="cc-error">
+            {errors.captain_discord}
+          </p>
+        ) : null}
       </div>
       <div>
         <label className="cc-label" htmlFor="teammates_discord">
           Teammates Discord <span className="signup-helper">(optional)</span>
         </label>
-        <textarea id="teammates_discord" name="teammates_discord" rows={4} className="cc-input signup-mono" placeholder={"@player1\n@player2\n<@123456789012345678>"} value={values.teammates_discord} onChange={(e) => setValues((v) => ({ ...v, teammates_discord: e.target.value }))} />
-        {errors.teammates_discord ? <p className="cc-error">{errors.teammates_discord}</p> : null}
+        <textarea
+          id="teammates_discord"
+          name="teammates_discord"
+          rows={4}
+          className="cc-input signup-mono"
+          placeholder={"@player1\n@player2\n<@123456789012345678>"}
+          value={values.teammates_discord}
+          onChange={(e) => setValues((v) => ({ ...v, teammates_discord: e.target.value }))}
+          aria-invalid={errors.teammates_discord ? true : undefined}
+          aria-describedby={errors.teammates_discord ? "teammates_discord_error" : undefined}
+        />
+        {errors.teammates_discord ? (
+          <p id="teammates_discord_error" className="cc-error">
+            {errors.teammates_discord}
+          </p>
+        ) : null}
       </div>
       <div>
         <label className="cc-label" htmlFor="contact_email">
           Contact email <span className="signup-helper">(optional)</span>
         </label>
-        <input id="contact_email" name="contact_email" type="email" className="cc-input" autoComplete="email" value={values.contact_email} onChange={(e) => setValues((v) => ({ ...v, contact_email: e.target.value }))} />
-        {errors.contact_email ? <p className="cc-error">{errors.contact_email}</p> : null}
+        <input
+          id="contact_email"
+          name="contact_email"
+          type="email"
+          className="cc-input"
+          autoComplete="email"
+          value={values.contact_email}
+          onChange={(e) => setValues((v) => ({ ...v, contact_email: e.target.value }))}
+          aria-invalid={errors.contact_email ? true : undefined}
+          aria-describedby={errors.contact_email ? "contact_email_error" : undefined}
+        />
+        {errors.contact_email ? (
+          <p id="contact_email_error" className="cc-error">
+            {errors.contact_email}
+          </p>
+        ) : null}
       </div>
       <div>
         <label className="cc-label" htmlFor="notes">
           Notes <span className="signup-helper">(optional)</span>
         </label>
-        <textarea id="notes" name="notes" rows={4} className="cc-input" value={values.notes} onChange={(e) => setValues((v) => ({ ...v, notes: e.target.value }))} />
-        {errors.notes ? <p className="cc-error">{errors.notes}</p> : null}
+        <textarea
+          id="notes"
+          name="notes"
+          rows={4}
+          className="cc-input"
+          value={values.notes}
+          onChange={(e) => setValues((v) => ({ ...v, notes: e.target.value }))}
+          aria-invalid={errors.notes ? true : undefined}
+          aria-describedby={errors.notes ? "notes_error" : undefined}
+        />
+        {errors.notes ? (
+          <p id="notes_error" className="cc-error">
+            {errors.notes}
+          </p>
+        ) : null}
       </div>
       <div className="signup-actions">
         <button type="submit" className="cc-btn-primary" disabled={submitting}>

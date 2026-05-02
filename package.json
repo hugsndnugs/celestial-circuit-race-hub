@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "build:static": "next build",
-    "start": "next start",
+    "serve:out": "npx --yes serve out -s",
     "lint": "eslint app next.config.ts eslint.config.mjs",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test \"tests/**/*.test.ts\"",

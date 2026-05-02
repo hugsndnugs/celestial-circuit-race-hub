@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import type { RealtimeChannel } from "@supabase/supabase-js";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { formatDateTime } from "@/lib/controller/datetime";
 import { getLeaderboard } from "@/lib/controller/race-service";
 import { getSupabaseBrowser } from "@/lib/signups/supabaseBrowser";
@@ -10,29 +11,57 @@ export default function LeaderboardPage() {
   const [raceRef, setRaceRef] = useState("");
   const [rows, setRows] = useState<LeaderboardRow[]>([]);
   const [message, setMessage] = useState("Provide race code and refresh leaderboard.");
+  const fetchIdRef = useRef(0);
 
   const refresh = useCallback(async () => {
+    const requestId = ++fetchIdRef.current;
     try {
       const leaderboard = await getLeaderboard(raceRef);
+      if (requestId !== fetchIdRef.current) return;
       setRows(leaderboard);
       setMessage(`Updated at ${formatDateTime(new Date().toISOString())}`);
     } catch {
+      if (requestId !== fetchIdRef.current) return;
       setMessage("Failed to load leaderboard.");
     }
   }, [raceRef]);
 
   useEffect(() => {
     const supabase = getSupabaseBrowser();
-    if (!supabase || !raceRef.trim()) return;
-    const normalizedRace = raceRef.trim();
-    const channel = supabase
-      .channel(`leaderboard:${normalizedRace}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "relay_events", filter: `race_id=eq.${normalizedRace}` }, () => {
-        void refresh();
-      })
-      .subscribe();
+    const trimmed = raceRef.trim();
+    if (!supabase || !trimmed) return;
+
+    let cancelled = false;
+    const channelRef: { current: RealtimeChannel | null } = { current: null };
+
+    void (async () => {
+      const { data: raceRow } = await supabase
+        .from("races")
+        .select("id")
+        .or(`code.eq.${trimmed},id.eq.${trimmed}`)
+        .maybeSingle();
+      if (cancelled || !raceRow?.id) return;
+      const ch = supabase
+        .channel(`leaderboard:${raceRow.id}`)
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "relay_events", filter: `race_id=eq.${raceRow.id}` },
+          () => {
+            void refresh();
+          },
+        )
+        .subscribe();
+      if (cancelled) {
+        void supabase.removeChannel(ch);
+        return;
+      }
+      channelRef.current = ch;
+    })();
+
     return () => {
-      void supabase.removeChannel(channel);
+      cancelled = true;
+      const ch = channelRef.current;
+      if (ch) void supabase.removeChannel(ch);
     };
   }, [raceRef, refresh]);
 
@@ -45,7 +74,9 @@ export default function LeaderboardPage() {
       <section className="card section-stack">
         <label htmlFor="leaderboardRaceId">Race Code</label>
         <input id="leaderboardRaceId" value={raceRef} onChange={(event) => setRaceRef(event.target.value)} placeholder="solar-fox-42" />
-        <button type="button" onClick={refresh}>Refresh</button>
+        <button type="button" onClick={() => void refresh()}>
+          Refresh
+        </button>
       </section>
       <section className="card">
         <h2>Standings</h2>

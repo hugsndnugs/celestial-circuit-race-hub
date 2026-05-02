@@ -1,11 +1,30 @@
-// @ts-nocheck
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
+import { z } from "npm:zod@3.23.8";
+
+const MAX_RELAY_POINTS = 50;
+const RELAY_POINT_NAME_MAX = 120;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "null",
   "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
+
+const createRacePayloadSchema = z.object({
+  action: z.literal("createRaceWithPoints"),
+  name: z.string().trim().min(1).max(200),
+  code: z.string().trim().min(1).max(120),
+  relayPoints: z
+    .array(z.string().trim().min(1).max(RELAY_POINT_NAME_MAX))
+    .min(1)
+    .max(MAX_RELAY_POINTS),
+});
+
+const approveSignupPayloadSchema = z.object({
+  action: z.literal("approveSignupToRaceAtomic"),
+  signupId: z.string().uuid(),
+  raceId: z.string().uuid(),
+});
 
 function getAllowedOrigin(request: Request): string | null {
   const configuredOrigins = (Deno.env.get("ALLOWED_ORIGINS") ?? "")
@@ -43,13 +62,11 @@ function normalizeMembers(captainDiscord: string, teammatesDiscord: string | nul
   return [...deduped];
 }
 
-function readRequiredString(payload: Record<string, unknown>, key: string): string {
-  const value = payload[key];
-  if (typeof value !== "string") return "";
-  return value.trim();
+function safeDbError(): string {
+  return "Database operation failed.";
 }
 
-async function assertActiveAdmin(adminClient: ReturnType<typeof createClient>, callerEmail: string): Promise<boolean> {
+async function assertActiveAdmin(adminClient: SupabaseClient, callerEmail: string): Promise<boolean> {
   const adminResponse = await adminClient
     .from("admin_users")
     .select("email")
@@ -62,55 +79,45 @@ async function assertActiveAdmin(adminClient: ReturnType<typeof createClient>, c
 }
 
 async function handleCreateRaceWithPoints(
-  adminClient: ReturnType<typeof createClient>,
-  payload: Record<string, unknown>,
+  adminClient: SupabaseClient,
+  payload: z.infer<typeof createRacePayloadSchema>,
   request: Request,
 ) {
-  const raceName = readRequiredString(payload, "name");
-  const code = readRequiredString(payload, "code");
-  const relayPoints = Array.isArray(payload.relayPoints) ? payload.relayPoints.map(String) : [];
-  if (!raceName || !code) {
-    return json(request, { error: "Race name and code are required." }, 400);
-  }
-
   const rpcResponse = await adminClient.rpc("create_race_with_points", {
-    p_name: raceName,
-    p_code: code,
-    p_relay_points: relayPoints,
+    p_name: payload.name,
+    p_code: payload.code,
+    p_relay_points: payload.relayPoints,
   });
   if (rpcResponse.error || !rpcResponse.data) {
-    return json(request, { error: rpcResponse.error?.message ?? "Failed to create race." }, 400);
+    console.error("create_race_with_points failed", rpcResponse.error);
+    return json(request, { error: safeDbError() }, 400);
   }
   return json(request, { data: rpcResponse.data });
 }
 
 async function handleApproveSignup(
-  adminClient: ReturnType<typeof createClient>,
-  payload: Record<string, unknown>,
+  adminClient: SupabaseClient,
+  payload: z.infer<typeof approveSignupPayloadSchema>,
   request: Request,
 ) {
-  const signupId = readRequiredString(payload, "signupId");
-  const raceId = readRequiredString(payload, "raceId");
-  if (!signupId || !raceId) {
-    return json(request, { error: "Signup ID and race ID are required." }, 400);
-  }
-
   const signupResponse = await adminClient
     .from("team_signup_requests")
     .select("captain_discord, teammates_discord")
-    .eq("id", signupId)
+    .eq("id", payload.signupId)
     .limit(1)
     .maybeSingle();
   if (signupResponse.error || !signupResponse.data) {
-    return json(request, { error: signupResponse.error?.message ?? "Signup request not found." }, 400);
+    console.error("signup lookup failed", signupResponse.error);
+    return json(request, { error: safeDbError() }, 400);
   }
 
   const rpcResponse = await adminClient.rpc("approve_signup_to_race_atomic", {
-    p_signup_id: signupId,
-    p_race_id: raceId,
+    p_signup_id: payload.signupId,
+    p_race_id: payload.raceId,
   });
   if (rpcResponse.error || !rpcResponse.data) {
-    return json(request, { error: rpcResponse.error?.message ?? "Failed to approve signup request." }, 400);
+    console.error("approve_signup_to_race_atomic failed", rpcResponse.error);
+    return json(request, { error: safeDbError() }, 400);
   }
 
   const team = rpcResponse.data as Record<string, unknown>;
@@ -164,20 +171,30 @@ Deno.serve(async (request: Request) => {
   const hasAdminAccess = await assertActiveAdmin(adminClient, callerEmail);
   if (!hasAdminAccess) return json(request, { error: "Admin access required." }, 403);
 
+  let rawPayload: unknown;
   try {
-    const payload = (await request.json()) as Record<string, unknown>;
-    const action = payload.action;
+    rawPayload = await request.json();
+  } catch {
+    return json(request, { error: "Invalid JSON body." }, 400);
+  }
 
+  try {
+    const action = (rawPayload as Record<string, unknown>)?.action;
     if (action === "createRaceWithPoints") {
+      const payload = createRacePayloadSchema.parse(rawPayload);
       return handleCreateRaceWithPoints(adminClient, payload, request);
     }
-
     if (action === "approveSignupToRaceAtomic") {
+      const payload = approveSignupPayloadSchema.parse(rawPayload);
       return handleApproveSignup(adminClient, payload, request);
     }
-
     return json(request, { error: "Unsupported action." }, 400);
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      console.warn("admin-race-ops validation", error.flatten());
+      return json(request, { error: "Invalid request payload." }, 400);
+    }
+    console.error("admin-race-ops error", error);
     return json(request, { error: error instanceof Error ? error.message : "Unknown admin race ops error." }, 400);
   }
 });

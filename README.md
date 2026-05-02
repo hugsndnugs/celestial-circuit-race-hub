@@ -15,6 +15,8 @@ npm install
 npm run dev
 ```
 
+After `npm run build`, preview the static export locally with `npm run serve:out` (serves the `out/` folder).
+
 ## Environment variables
 
 Copy `.env.example` to `.env.local` and set values as needed.

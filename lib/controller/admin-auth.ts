@@ -204,9 +204,6 @@ export async function isAllowedMarshal(email: string): Promise<boolean> {
 }
 
 export async function getCurrentUserEmail(): Promise<string | null> {
-  const { data: sessionData } = await supabase.auth.getSession();
-  const sessionEmail = sessionData.session?.user?.email;
-  if (sessionEmail) return normalizeEmail(sessionEmail);
   const { data, error } = await supabase.auth.getUser();
   if (error) return null;
   const email = data.user?.email;
@@ -264,8 +261,7 @@ export async function getCurrentAdminIdentity(): Promise<AdminIdentity | null> {
 }
 
 export async function updateCurrentAdminDisplayName(displayName: string): Promise<AdminIdentity> {
-  const identity = await getCurrentAdminIdentity();
-  if (!identity) throw new Error(NOT_SIGNED_IN_ERROR);
+  const email = await requireAdminUserEmail();
   const normalizedDisplayName = normalizeDisplayName(displayName);
   if (!normalizedDisplayName) throw new Error("Display name is required.");
   const { error: metadataError } = await supabase.auth.updateUser({
@@ -275,10 +271,10 @@ export async function updateCurrentAdminDisplayName(displayName: string): Promis
   const { error: adminUsersError } = await supabase
     .from("admin_users")
     .update({ display_name: normalizedDisplayName })
-    .eq("email", identity.email)
+    .eq("email", email)
     .eq("is_active", true);
   if (adminUsersError) throw new Error(adminUsersError.message);
-  return { email: identity.email, displayName: normalizedDisplayName };
+  return { email, displayName: normalizedDisplayName };
 }
 
 export async function requireSignedInUserEmail(): Promise<string> {

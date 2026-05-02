@@ -7,13 +7,13 @@ export const raceRefSchema = z.string().refine(
 );
 
 export const createRaceSchema = z.object({
-  name: z.string().min(2),
-  relayPoints: z.array(z.string().min(1)).min(1),
+  name: z.string().trim().min(2),
+  relayPoints: z.array(z.string().trim().min(1)).min(1),
 });
 
 export const createTeamSchema = z.object({
   raceId: raceRefSchema,
-  name: z.string().min(2),
+  name: z.string().trim().min(2),
   members: z.array(z.string().min(1)).min(1),
 });
 

@@ -15,7 +15,10 @@ export default function UnifiedSignInPage() {
   const [hasRaceControlAccess, setHasRaceControlAccess] = useState(false);
   const [status, setStatus] = useState("Enter your email to sign in.");
 
-  const redirectUrl = globalThis.location === undefined ? "/signin" : `${globalThis.location.origin}/signin`;
+  const redirectUrl =
+    typeof globalThis.window === "undefined"
+      ? `${(process.env.NEXT_PUBLIC_BASE_PATH ?? "").replace(/\/$/, "") || ""}/signin`
+      : `${globalThis.window.location.origin}${globalThis.window.location.pathname}`;
 
   useEffect(() => {
     let isMounted = true;

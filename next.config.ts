@@ -17,6 +17,8 @@ const basePath = envBasePath ?? (isGithubPagesBuild ? defaultProjectBasePath : "
 const envAssetPrefix = normalizeBasePath(process.env.NEXT_PUBLIC_ASSET_PREFIX);
 const assetPrefix = envAssetPrefix ?? (basePath.length > 0 ? basePath : undefined);
 
+// With output: "export", Next.js does not emit custom HTTP headers for GitHub Pages static hosting.
+// Keep headers() for non-static runtimes (e.g. next start); add equivalent headers at your CDN/Pages edge if needed.
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   output: "export",
@@ -33,6 +35,8 @@ const nextConfig: NextConfig = {
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+          { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
           {
             key: "Content-Security-Policy",
             value:

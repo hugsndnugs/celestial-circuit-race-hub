@@ -7,6 +7,12 @@ interface RankingInput {
   relayEvents: RelayEvent[];
 }
 
+function safeGetTime(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const t = Date.parse(iso);
+  return Number.isFinite(t) ? t : null;
+}
+
 export function computeLeaderboard(input: RankingInput): LeaderboardRow[] {
   const { race, teams, relayPoints, relayEvents } = input;
   const activeRelayEvents = relayEvents.filter((event) => !event.invalidatedByEventId);
@@ -19,28 +25,46 @@ export function computeLeaderboard(input: RankingInput): LeaderboardRow[] {
     teamEvents.set(event.teamId, current);
   }
 
+  const startedAtMs = safeGetTime(race.startedAt);
+
   const rows: LeaderboardRow[] = teams.map((team) => {
     const events = (teamEvents.get(team.id) ?? []).sort((a, b) => {
       const seqDiff = (relayPointOrder.get(a.relayPointId) ?? 9999) - (relayPointOrder.get(b.relayPointId) ?? 9999);
       if (seqDiff !== 0) return seqDiff;
-      return new Date(a.effectiveRecordedAt).getTime() - new Date(b.effectiveRecordedAt).getTime();
+      const ta = safeGetTime(a.effectiveRecordedAt);
+      const tb = safeGetTime(b.effectiveRecordedAt);
+      if (ta === null && tb === null) return 0;
+      if (ta === null) return 1;
+      if (tb === null) return -1;
+      return ta - tb;
     });
+    const distinctRelayPointIds = new Set(events.map((event) => event.relayPointId));
+    const completedRelayPoints = distinctRelayPointIds.size;
     const last = events.at(-1) ?? null;
-    const elapsed = race.startedAt && last ? Math.floor((new Date(last.effectiveRecordedAt).getTime() - new Date(race.startedAt).getTime()) / 1000) : null;
+    const lastMs = last ? safeGetTime(last.effectiveRecordedAt) : null;
+    const lastRecordedAt = lastMs !== null ? last?.effectiveRecordedAt ?? null : null;
+    let elapsedSeconds: number | null = null;
+    if (startedAtMs !== null && lastMs !== null) {
+      elapsedSeconds = Math.floor((lastMs - startedAtMs) / 1000);
+      if (!Number.isFinite(elapsedSeconds)) elapsedSeconds = null;
+    }
     return {
       teamId: team.id,
       teamName: team.name,
-      completedRelayPoints: events.length,
-      lastRecordedAt: last?.effectiveRecordedAt ?? null,
-      elapsedSeconds: elapsed,
+      completedRelayPoints,
+      lastRecordedAt,
+      elapsedSeconds,
     };
   });
 
   return rows.sort((a, b) => {
     if (b.completedRelayPoints !== a.completedRelayPoints) return b.completedRelayPoints - a.completedRelayPoints;
-    if (!a.lastRecordedAt && !b.lastRecordedAt) return a.teamName.localeCompare(b.teamName);
-    if (!a.lastRecordedAt) return 1;
-    if (!b.lastRecordedAt) return -1;
-    return new Date(a.lastRecordedAt).getTime() - new Date(b.lastRecordedAt).getTime();
+    const ta = a.lastRecordedAt ? safeGetTime(a.lastRecordedAt) : null;
+    const tb = b.lastRecordedAt ? safeGetTime(b.lastRecordedAt) : null;
+    if (ta === null && tb === null) return a.teamName.localeCompare(b.teamName);
+    if (ta === null) return 1;
+    if (tb === null) return -1;
+    if (ta !== tb) return ta - tb;
+    return a.teamName.localeCompare(b.teamName);
   });
 }
