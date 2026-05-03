@@ -13,16 +13,23 @@ jobs:
         env:
           SUPABASE_KEEPALIVE_URL: ${{ secrets.SUPABASE_KEEPALIVE_URL }}
           SUPABASE_KEEPALIVE_TOKEN: ${{ secrets.SUPABASE_KEEPALIVE_TOKEN }}
-          SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
         run: |
+          SUPABASE_ANON_KEY="${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}"
+          if [ -z "$SUPABASE_ANON_KEY" ]; then
+            SUPABASE_ANON_KEY="${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}"
+          fi
+
           if [ -z "$SUPABASE_KEEPALIVE_URL" ] || [ -z "$SUPABASE_KEEPALIVE_TOKEN" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
-            echo "Missing SUPABASE_KEEPALIVE_URL, SUPABASE_KEEPALIVE_TOKEN, or NEXT_PUBLIC_SUPABASE_ANON_KEY secret."
+            echo "Keep-alive needs all of the following (anon key can be a repo Variable or Secret):"
+            echo "  - secrets.SUPABASE_KEEPALIVE_URL (full URL to the keep-alive edge function)"
+            echo "  - secrets.SUPABASE_KEEPALIVE_TOKEN (same value as KEEPALIVE_TOKEN on the function)"
+            echo "  - vars.NEXT_PUBLIC_SUPABASE_ANON_KEY or secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY (for apikey header)"
             exit 1
           fi
 
+          # Edge handler checks Authorization Bearer against KEEPALIVE_TOKEN; Supabase gateway still expects apikey.
           curl --fail-with-body --silent --show-error \
             --request GET \
-            --header "Authorization: Bearer $SUPABASE_ANON_KEY" \
             --header "apikey: $SUPABASE_ANON_KEY" \
-            --header "x-keepalive-token: $SUPABASE_KEEPALIVE_TOKEN" \
+            --header "Authorization: Bearer $SUPABASE_KEEPALIVE_TOKEN" \
             "$SUPABASE_KEEPALIVE_URL"
